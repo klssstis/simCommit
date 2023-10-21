@@ -3,7 +3,7 @@ import sys
 import os
 from github import Github
 from github import Auth
-import datetime
+from datetime import datetime, timedelta
 
 fileText = './results/text_corpus'
 fileSha = './results/sha_corpus'
@@ -100,7 +100,7 @@ from gensim import similarities
 
 index = similarities.SparseMatrixSimilarity(tfidf[bow_corpus], num_features=len(dictionary))
 
-fileOut = open('./results/gensim_'+datetime.date.today().strftime("%d%m%Y")+'_'+userName+'_'+repoName,'w')
+fileOut = open('./results/gensim_'+datetime.now().strftime("%d%m%Y")+'_'+userName+'_'+repoName,'w')
 
 for i in dictCheckCommit:
     query_document = dictCheckCommit[i].split()
