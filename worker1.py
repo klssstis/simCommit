@@ -66,12 +66,12 @@ for i in commits:
 
 
 
-file = open('text_corpus','w')
+file = open(fileText,'w')
 for item in text_corpus:
 	file.write(item+"_|_")
 file.close()
 
-file = open('sha_corpus','w')
+file = open(fileSha,'w')
 for item in sha_corpus:
 	file.write(item+"\n")
 file.close()
