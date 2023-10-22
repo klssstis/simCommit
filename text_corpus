@@ -18709,4 +18709,20 @@ handling ...
 This is pretty ancient, so backpatch all the way back.
 
 Author: Michael Paquier and Álvaro Herrera
-Discussion: https://www.postgresql.org/message-id/CAFrbyQwyLDYXfBOhPfoBGqnvuZO_Y90YgqFM11T2jvnxjLFmqw@mail.gmail.com_|_
+Discussion: https://www.postgresql.org/message-id/CAFrbyQwyLDYXfBOhPfoBGqnvuZO_Y90YgqFM11T2jvnxjLFmqw@mail.gmail.com_|_Fix min_dynamic_shared_memory on Windows.
+
+When min_dynamic_shared_memory is set above 0, we try to find space in a
+pre-allocated region of the main shared memory area instead of calling
+dsm_impl_XXX() routines to allocate more.  The dsm_pin_segment() and
+dsm_unpin_segment() routines had a bug: they called dsm_impl_XXX()
+routines even for main region segments.  Nobody noticed before now
+because those routines do nothing on Unix, but on Windows they'd fail
+while attempting to duplicate an invalid Windows HANDLE.  Add the
+missing gating.
+
+Back-patch to 14, where commit 84b1c63a added this feature.  Fixes
+pgsql-bugs bug #18165.
+
+Reported-by: Maxime Boyer <maxime.boyer@cra-arc.gc.ca>
+Tested-by: Alexander Lakhin <exclusion@gmail.com>
+Discussion: https://postgr.es/m/18165-bf4f525cea6e51de%40postgresql.org_|_
