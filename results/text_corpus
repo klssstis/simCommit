@@ -18725,4 +18725,50 @@ pgsql-bugs bug #18165.
 
 Reported-by: Maxime Boyer <maxime.boyer@cra-arc.gc.ca>
 Tested-by: Alexander Lakhin <exclusion@gmail.com>
-Discussion: https://postgr.es/m/18165-bf4f525cea6e51de%40postgresql.org_|_
+Discussion: https://postgr.es/m/18165-bf4f525cea6e51de%40postgresql.org_|_Fix problems when a plain-inheritance parent table is excluded.
+
+When an UPDATE/DELETE/MERGE's target table is an old-style
+inheritance tree, it's possible for the parent to get excluded
+from the plan while some children are not.  (I believe this is
+only possible if we can prove that a CHECK ... NO INHERIT
+constraint on the parent contradicts the query WHERE clause,
+so it's a very unusual case.)  In such a case, ExecInitModifyTable
+mistakenly concluded that the first surviving child is the target
+table, leading to at least two bugs:
+
+1. The wrong table's statement-level triggers would get fired.
+
+2. In v16 and up, it was possible to fail with "invalid perminfoindex
+0 in RTE with relid nnnn" due to the child RTE not having permissions
+data included in the query plan.  This was hard to reproduce reliably
+because it did not occur unless the update triggered some non-HOT
+index updates.
+
+In v14 and up, this is easy to fix by defining ModifyTable.rootRelation
+to be the parent RTE in plain inheritance as well as partitioned cases.
+
+While the wrong-triggers bug also appears in older branches, the
+relevant code in both the planner and executor is quite a bit
+different, so it would take a good deal of effort to develop and
+test a suitable patch.  Given the lack of field complaints about the
+trigger issue, I'll desist for now.  (Patching v11 for this seems
+unwise anyway, given that it will have no more releases after next
+month.)
+
+Per bug #18147 from Hans Buschmann.
+
+Amit Langote and Tom Lane
+
+Discussion: https://postgr.es/m/18147-6fc796538913ee88@postgresql.org_|_Doc: indexUnchanged is strictly a hint.
+
+Clearly spell out the limitations of aminsert()'s indexUnchanged hinting
+mechanism in the index AM documentation.
+
+Oversight in commit 9dc718bd, which added the "logically unchanged
+index" hint (which is used to trigger bottom-up index deletion).
+
+Author: Peter Geoghegan <pg@bowt.ie>
+Reported-By: Tom Lane <tgl@sss.pgh.pa.us>
+Reviewed-By: Tom Lane <tgl@sss.pgh.pa.us>
+Discussion: https://postgr.es/m/CAH2-WzmU_BQ=-H9L+bxTSMQBqHMjp1DSwGypvL0gKs+dTOfkKg@mail.gmail.com
+Backpatch: 14-, where indexUnchanged hinting was introduced._|_
