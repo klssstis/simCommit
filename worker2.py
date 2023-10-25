@@ -44,37 +44,8 @@ commits = repo.get_commits(since=since)
 
 dictCheckCommit = dict()
 for i in commits:
-    if 'Discussion:' in i.commit.message:
-        for j in i.commit.message.split('Discussion:')[1:]:
-            if not 'https://' in j:
-                continue
-            a = 'https://'+j.split('https://')[1].splitlines()[0]
-            try:
-                r = requests.get(a)
-            except:
-                continue
-            if r.status_code == 200:
-                if 'span class=\"listname\"' in str(r.content):
-                    typeList = str(r.content).split('span class=\"listname\"')[1].split('/span')[0].split('\">')[1].split('</a')[0]
-                    if 'pgsql-bugs' in typeList:
-                        text_corpus.append(i.commit.message)
-                        sha_corpus.append(i.sha)
-                    else:
-                        dictCheckCommit[i.sha] = i.commit.message      
-    else:
-        dictCheckCommit[i.sha] = i.commit.message   
+    dictCheckCommit[i.sha] = i.commit.message   
 
-
-
-file = open(fileText,'w')
-for item in text_corpus:
-	file.write(item+"_|_")
-file.close()
-
-file = open(fileSha,'w')
-for item in sha_corpus:
-	file.write(item+"\n")
-file.close()
 
 stoplist = set('for a of the and to in'.split(' '))
 texts = [[word for word in document.lower().split() if word not in stoplist]
@@ -108,7 +79,7 @@ for i in dictCheckCommit:
     sims = index[tfidf[query_bow]]
     for document_number, score in sorted(enumerate(sims), key=lambda x: x[1], reverse=True):
         fileOut.write(str(score)+' '+str(i)[:8]+' '+str(sha_corpus[document_number])+'\n')
-        if score>0.2:
+        if score>0.5:
             bot_message = 'new:https://github.com/'+userName+'/'+repoName+'/commit/'+str(i)[:8] +'\n'+'old:https://github.com/'+userName+'/'+repoName+'/pull/'+str(sha_corpus[document_number])+'\n'+str(score)
             send_text = 'https://api.telegram.org/bot' + bot_token + '/sendMessage?chat_id=' + bot_chatID + '&parse_mode=Markdown&text=' + bot_message
             response = requests.get(send_text)
