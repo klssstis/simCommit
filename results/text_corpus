@@ -18788,4 +18788,12 @@ make it so.
 
 Reported-by: Tom Lane
 Discussion: https://postgr.es/m/839708.1698174464@sss.pgh.pa.us
-Backpatch-through: 16_|_
+Backpatch-through: 16_|_Make UniqueRelInfo a node
+
+d3d55ce571 changed RelOptInfo.unique_for_rels from the list of Relid sets to
+the list of UniqueRelInfo's.  But it didn't make UniqueRelInfo a node.
+This commit makes UniqueRelInfo a node.  Also this commit revises some
+comments related to RelOptInfo.unique_for_rels.
+
+Reported-by: Tom Lane
+Discussion: https://postgr.es/m/flat/1189851.1698340331%40sss.pgh.pa.us_|_
