@@ -18796,4 +18796,20 @@ This commit makes UniqueRelInfo a node.  Also this commit revises some
 comments related to RelOptInfo.unique_for_rels.
 
 Reported-by: Tom Lane
-Discussion: https://postgr.es/m/flat/1189851.1698340331%40sss.pgh.pa.us_|_
+Discussion: https://postgr.es/m/flat/1189851.1698340331%40sss.pgh.pa.us_|_Fix intra-query memory leak when a SRF returns zero rows.
+
+When looping around after finding that the set-returning function
+returned zero rows for the current input tuple, ExecProjectSet
+neglected to reset either of the two memory contexts it's
+responsible for cleaning out.  Typically this wouldn't cause much
+problem, because once the SRF does return at least one row, the
+contexts would get reset on the next call.  However, if the SRF
+returns no rows for many input tuples in succession, quite a lot
+of memory could be transiently consumed.
+
+To fix, make sure we reset both contexts while looping around.
+
+Per bug #18172 from Sergei Kornilov.  Back-patch to all supported
+branches.
+
+Discussion: https://postgr.es/m/18172-9b8c5fc1d676ded3@postgresql.org_|_
