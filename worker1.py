@@ -109,7 +109,7 @@ for i in dictCheckCommit:
     for document_number, score in sorted(enumerate(sims), key=lambda x: x[1], reverse=True):
         fileOut.write(str(score)+' '+str(i)[:8]+' '+str(sha_corpus[document_number])[:8]+'\n')
         if score>0.5:
-            bot_message = 'new:https://github.com/'+userName+'/'+repoName+'/commit/'+str(i)[:8] +'\n'+'old:https://github.com/'+userName+'/'+repoName+'/commit/'+str(sha_corpus[document_number])[:8]+'\n'+str(score)
+            bot_message = 'new:https://github.com/'+userName+'/'+repoName+'/commit/'+str(i)[:8] +'.patch\n'+'old:https://github.com/'+userName+'/'+repoName+'/commit/'+str(sha_corpus[document_number])[:8]+'.patch\n'+str(score)
             send_text = 'https://api.telegram.org/bot' + bot_token + '/sendMessage?chat_id=' + bot_chatID + '&parse_mode=Markdown&text=' + bot_message
             response = requests.get(send_text)
     fileOut.write('\n')
