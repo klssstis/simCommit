@@ -18812,4 +18812,41 @@ To fix, make sure we reset both contexts while looping around.
 Per bug #18172 from Sergei Kornilov.  Back-patch to all supported
 branches.
 
-Discussion: https://postgr.es/m/18172-9b8c5fc1d676ded3@postgresql.org_|_
+Discussion: https://postgr.es/m/18172-9b8c5fc1d676ded3@postgresql.org_|_Fix usage of the parse tree for estimate_num_groups() in set operations
+
+recurse_set_operations() uses the parse tree for the group number estimation,
+because of the "varno 0" hack.  At the same time 2489d76c49 made root->parse
+and corresponding parent_root->simple_rte_array[]->subquery distinct copies
+of the parse tree, while d3d55ce571 introduced self-join removal replacing
+relid of removed relation only in one of the copies.
+
+The present commit fixes this bug by making recurse_set_operations() call
+estimate_num_groups() with the copy of the parse tree processed by self-join
+removal.
+
+In future, we may think about maintaining just one copy of the parse tree
+and/or keeping removed relids as aliases.
+
+Reported-by: Zuming Jiang
+Bug: #18170
+Discussion: https://postgr.es/m/flat/18170-f1d17bf9a0d58b24%40postgresql.org
+Author: Richard Guo, Alexander Korotkov
+Reviewed-by: Andrei Lepikhov_|_Doc: update CREATE RULE ref page's hoary discussion of views.
+
+This text left one with the impression that an ON SELECT rule could
+be attached to a plain table, which has not been true since commit
+264c06820 (meaning the text was already misleading when written,
+evidently by me in 96bd67f61).  However, it didn't get really bad
+until b23cd185f removed the convert-a-table-to-a-view logic, which
+had made it possible for scripts that thought they were attaching
+ON SELECTs to tables to still work.
+
+Rewrite into a form that makes it clear that an ON SELECT rule
+is better regarded as an implementation detail of a view.
+Pre-v16, point out that adding ON SELECT to a table actually
+converts it to a view.
+
+Per bug #18178 from Joshua Uyehara.  Back-patch to all supported
+branches.
+
+Discussion: https://postgr.es/m/18178-05534d7064044d2d@postgresql.org_|_
