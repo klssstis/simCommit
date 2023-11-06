@@ -18849,4 +18849,7 @@ converts it to a view.
 Per bug #18178 from Joshua Uyehara.  Back-patch to all supported
 branches.
 
-Discussion: https://postgr.es/m/18178-05534d7064044d2d@postgresql.org_|_
+Discussion: https://postgr.es/m/18178-05534d7064044d2d@postgresql.org_|_Fix allocation of UniqueRelInfo
+
+Reported-by: Richard Guo
+Discussion: https://postgr.es/m/CAMbWs4_STsG1PKQBuvQC8W4sPo3KvML3=jOTjKLUYQuK3g8cpQ@mail.gmail.com_|_
