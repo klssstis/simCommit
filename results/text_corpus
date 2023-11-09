@@ -18868,4 +18868,40 @@ instead, based on a suggestion by Tom Lane.
 Author: Alexander Lakhin
 Reviewed-by: Tom Lane, Shihao Zhong
 Discussion: https://postgr.es/m/17969-a6c54de48026d694@postgresql.org
-Backpatch-through: 14_|_
+Backpatch-through: 14_|_Fix the way SJE removes references from PHVs
+
+Add missing replacement of relids in phv->phexpr.  Also, remove extra
+replace_relid() over phv->phrels.
+
+Reported-by:  Zuming Jiang
+Bug: #18187
+Discussion: https://postgr.es/m/flat/18187-831da249cbd2ff8e%40postgresql.org
+Author: Richard Guo
+Reviewed-by: Andrei Lepikhov_|_Fix some issues with tracking nesting level in pg_stat_statements.
+
+When we decide that we don't want to track execution time of a
+specific planner or ProcessUtility call, we still have to increment
+the nesting depth, or we'll make the wrong determination of whether
+we are at top level when considering nested statements.  (PREPARE
+and EXECUTE are exceptions, for reasons explained in the code.)
+
+Counting planner nesting depth separately from executor nesting depth
+was a mistake: it causes us to make the wrong determination of whether
+we are at top level when considering nested statements that get
+executed during planning (as a result of constant-folding of
+functions, for example).  Merge those counters into one.
+
+In passing, get rid of the PGSS_HANDLED_UTILITY macro in favor of
+explicitly listing statement types.  It seems somewhat coincidental
+that PREPARE and EXECUTE are handled alike in each of the places where
+that was used: the reasoning tends to be different for each one.
+Thus, the macro seems as likely to encourage future bugs as prevent
+them, since it's quite unclear whether any future statement type that
+might need special-casing here would also need the same choices at
+each spot.
+
+Sergei Kornilov, Julien Rouhaud, and Tom Lane, per bug #17552 from
+Maxim Boguk.  This is pretty clearly a bug fix, but it's also a
+behavioral change that might surprise somebody, so no back-patch.
+
+Discussion: https://postgr.es/m/17552-213b534c56ab5d02@postgresql.org_|_
