@@ -18904,4 +18904,15 @@ Sergei Kornilov, Julien Rouhaud, and Tom Lane, per bug #17552 from
 Maxim Boguk.  This is pretty clearly a bug fix, but it's also a
 behavioral change that might surprise somebody, so no back-patch.
 
-Discussion: https://postgr.es/m/17552-213b534c56ab5d02@postgresql.org_|_
+Discussion: https://postgr.es/m/17552-213b534c56ab5d02@postgresql.org_|_Fix computation of varnullingrels when const-folding field selection.
+
+We can simplify FieldSelect on a whole-row Var into a plain Var
+for the selected field.  However, we should copy the whole-row Var's
+varnullingrels when we do so, because the new Var is clearly nullable
+by exactly the same rels as the original.  Failure to do this led to
+errors like "wrong varnullingrels (b) (expected (b 3)) for Var 2/2".
+
+Richard Guo, per bug #18184 from Marian Krucina.  Back-patch to
+v16 where varnullingrels was introduced.
+
+Discussion: https://postgr.es/m/18184-5868dd258782058e@postgresql.org_|_
