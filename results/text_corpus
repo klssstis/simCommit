@@ -18923,4 +18923,70 @@ For now, we just do not remove self joins if the rel to be removed is laterally
 referenced by PHVs.
 
 Discussion: https://postgr.es/m/CAMbWs4-ns73VF9gi37q61G3dS6Xuos+HtryMaBh37WQn=BsaJw@mail.gmail.com
-Author: Richard Guo_|_
+Author: Richard Guo_|_Don't try to dump RLS policies or security labels for extension objects.
+
+checkExtensionMembership() set the DUMP_COMPONENT_SECLABEL and
+DUMP_COMPONENT_POLICY flags for extension member objects, even though
+we lack any infrastructure for tracking extensions' initial settings
+of these properties.  This is not OK.  The result was that a dump
+would always include commands to set these properties for extension
+objects that have them, with at least three negative consequences:
+
+1. The restoring user might not have privilege to set these properties
+on these objects.
+
+2. The properties might be incorrect/irrelevant for the version of the
+extension that's installed in the destination database.
+
+3. The dump itself might fail, in the case of RLS properties attached
+to extension tables that the dumping user lacks privilege to LOCK.
+(That's because we must get at least AccessShareLock to ensure that
+we don't fail while trying to decompile the RLS expressions.)
+
+When and if somebody cares to invent initial-state infrastructure for
+extensions' RLS policies and security labels, we could think about
+finding another way around problem #3.  But in the absence of such
+infrastructure, this whole thing is just wrong and we shouldn't do it.
+
+(Note: this applies only to ordinary dumps; binary-upgrade dumps
+still dump and restore extension member objects separately, with
+all properties.)
+
+Tom Lane and Jacob Champion.  Back-patch to all supported branches.
+
+Discussion: https://postgr.es/m/00d46a48-3324-d9a0-49bf-e7f0f11d1038@timescale.com_|_doc:  clarify handling of ts_headline() operators & extra words
+
+Reported-by: Ngigi Waithaka & Alex Malek
+
+Bug: 15172
+
+Discussion: https://postgr.es/m/152461454026.19805.6310947081647212894@wrigleys.postgresql.org
+
+Backpatch-through: 16_|_doc:  move ROW IS NULL examples to a different chapter
+
+Also add examples.
+
+Reported-by: Wolfgang Walther
+
+Discussion: https://postgr.es/m/21ff8e9c-627a-f949-fb00-a41b9ddcc9d3@technowledgy.de
+
+Backpatch-through: master_|_Don't release index root page pin in ginFindParents().
+
+It's clearly stated in the comments that ginFindParents() must keep
+the pin on the index's root page that's associated with the topmost
+GinBtreeStack item.  However, the code path for the case that the
+desired downlink has been pushed down to the next index level
+ignored this proviso, and would release the pin anyway if we were
+still examining the root level.  That led to an assertion failure
+or "buffer NNNN is not owned by resource owner" error later, when
+we try to release the pin again at the end of the insertion.
+
+This is quite hard to reproduce, since it can only happen if an
+index root page split occurs concurrently with our own insertion.
+Thanks to Jeff Janes for finding a test case that triggers it
+often enough to allow investigation.
+
+This has been there since the beginning of GIN, so back-patch
+to all supported branches.
+
+Discussion: https://postgr.es/m/CAMkU=1yCAKtv86dMrD__Ja-7KzjE=uMeKX8y__cx5W-OEWy2ow@mail.gmail.com_|_
