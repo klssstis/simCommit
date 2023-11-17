@@ -18989,4 +18989,36 @@ often enough to allow investigation.
 This has been there since the beginning of GIN, so back-patch
 to all supported branches.
 
-Discussion: https://postgr.es/m/CAMkU=1yCAKtv86dMrD__Ja-7KzjE=uMeKX8y__cx5W-OEWy2ow@mail.gmail.com_|_
+Discussion: https://postgr.es/m/CAMkU=1yCAKtv86dMrD__Ja-7KzjE=uMeKX8y__cx5W-OEWy2ow@mail.gmail.com_|_Ensure we preprocess expressions before checking their volatility.
+
+contain_mutable_functions and contain_volatile_functions give
+reliable answers only after expression preprocessing (specifically
+eval_const_expressions).  Some places understand this, but some did
+not get the memo --- which is not entirely their fault, because the
+problem is documented only in places far away from those functions.
+Introduce wrapper functions that allow doing the right thing easily,
+and add commentary in hopes of preventing future mistakes from
+copy-and-paste of code that's only conditionally safe.
+
+Two actual bugs of this ilk are fixed here.  We failed to preprocess
+column GENERATED expressions before checking mutability, so that the
+code could fail to detect the use of a volatile function
+default-argument expression, or it could reject a polymorphic function
+that is actually immutable on the datatype of interest.  Likewise,
+column DEFAULT expressions weren't preprocessed before determining if
+it's safe to apply the attmissingval mechanism.  A false negative
+would just result in an unnecessary table rewrite, but a false
+positive could allow the attmissingval mechanism to be used in a case
+where it should not be, resulting in unexpected initial values in a
+new column.
+
+In passing, re-order the steps in ComputePartitionAttrs so that its
+checks for invalid column references are done before applying
+expression_planner, rather than after.  The previous coding would
+not complain if a partition expression contains a disallowed column
+reference that gets optimized away by constant folding, which seems
+to me to be a behavior we do not want.
+
+Per bug #18097 from Jim Keener.  Back-patch to all supported versions.
+
+Discussion: https://postgr.es/m/18097-ebb179674f22932f@postgresql.org_|_
