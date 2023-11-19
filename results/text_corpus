@@ -19021,4 +19021,22 @@ to me to be a behavior we do not want.
 
 Per bug #18097 from Jim Keener.  Back-patch to all supported versions.
 
-Discussion: https://postgr.es/m/18097-ebb179674f22932f@postgresql.org_|_
+Discussion: https://postgr.es/m/18097-ebb179674f22932f@postgresql.org_|_Guard against overflow in interval_mul() and interval_div().
+
+Commits 146604ec43 and a898b409f6 added overflow checks to
+interval_mul(), but not to interval_div(), which contains almost
+identical code, and so is susceptible to the same kinds of
+overflows. In addition, those checks did not catch all possible
+overflow conditions.
+
+Add additional checks to the "cascade down" code in interval_mul(),
+and copy all the overflow checks over to the corresponding code in
+interval_div(), so that they both generate "interval out of range"
+errors, rather than returning bogus results.
+
+Given that these errors are relatively easy to hit, back-patch to all
+supported branches.
+
+Per bug #18200 from Alexander Lakhin, and subsequent investigation.
+
+Discussion: https://postgr.es/m/18200-5ea288c7b2d504b1%40postgresql.org_|_
