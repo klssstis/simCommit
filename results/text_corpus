@@ -19039,4 +19039,39 @@ supported branches.
 
 Per bug #18200 from Alexander Lakhin, and subsequent investigation.
 
-Discussion: https://postgr.es/m/18200-5ea288c7b2d504b1%40postgresql.org_|_
+Discussion: https://postgr.es/m/18200-5ea288c7b2d504b1%40postgresql.org_|_Fix timing-dependent failure in GSSAPI data transmission.
+
+When using GSSAPI encryption in non-blocking mode, libpq sometimes
+failed with "GSSAPI caller failed to retransmit all data needing
+to be retried".  The cause is that pqPutMsgEnd rounds its transmit
+request down to an even multiple of 8K, and sometimes that can lead
+to not requesting a write of data that was requested to be written
+(but reported as not written) earlier.  That can upset pg_GSS_write's
+logic for dealing with not-yet-written data, since it's possible
+the data in question had already been incorporated into an encrypted
+packet that we weren't able to send during the previous call.
+
+We could fix this with a one-or-two-line hack to disable pqPutMsgEnd's
+round-down behavior, but that seems like making the caller work around
+a behavior that pg_GSS_write shouldn't expose in this way.  Instead,
+adjust pg_GSS_write to never report a partial write: it either
+reports a complete write, or reflects the failure of the lower-level
+pqsecure_raw_write call.  The requirement still exists for the caller
+to present at least as much data as on the previous call, but with
+the caller-visible write start point not moving there is no temptation
+for it to present less.  We lose some ability to reclaim buffer space
+early, but I doubt that that will make much difference in practice.
+
+This also gets rid of a rather dubious assumption that "any
+interesting failure condition (from pqsecure_raw_write) will recur
+on the next try".  We've not seen failure reports traceable to that,
+but I've never trusted it particularly and am glad to remove it.
+
+Make the same adjustments to the equivalent backend routine
+be_gssapi_write().  It is probable that there's no bug on the backend
+side, since we don't have a notion of nonblock mode there; but we
+should keep the logic the same to ease future maintenance.
+
+Per bug #18210 from Lars Kanis.  Back-patch to all supported branches.
+
+Discussion: https://postgr.es/m/18210-4c6d0b14627f2eb8@postgresql.org_|_
