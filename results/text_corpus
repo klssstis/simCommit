@@ -19074,4 +19074,14 @@ should keep the logic the same to ease future maintenance.
 
 Per bug #18210 from Lars Kanis.  Back-patch to all supported branches.
 
-Discussion: https://postgr.es/m/18210-4c6d0b14627f2eb8@postgresql.org_|_
+Discussion: https://postgr.es/m/18210-4c6d0b14627f2eb8@postgresql.org_|_Fix assertions with RI triggers in heap_update and heap_delete.
+
+If the tuple being updated is not visible to the crosscheck snapshot,
+we return TM_Updated but the assertions would not hold in that case.
+Move them to before the cross-check.
+
+Fixes bug #17893. Backpatch to all supported versions.
+
+Author: Alexander Lakhin
+Backpatch-through: 12
+Discussion: https://www.postgresql.org/message-id/17893-35847009eec517b5%40postgresql.org_|_
