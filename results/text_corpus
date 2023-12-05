@@ -19084,4 +19084,20 @@ Fixes bug #17893. Backpatch to all supported versions.
 
 Author: Alexander Lakhin
 Backpatch-through: 12
-Discussion: https://www.postgresql.org/message-id/17893-35847009eec517b5%40postgresql.org_|_
+Discussion: https://www.postgresql.org/message-id/17893-35847009eec517b5%40postgresql.org_|_Fix handling of errors in libpq pipelines
+
+The logic to keep the libpq command queue in sync with queries that have
+been processed had a bug when errors were returned for reasons other
+than problems in queries -- for example, when a connection is lost.  We
+incorrectly consumed an element from the command queue every time, but
+this is wrong and can lead to the queue becoming empty ahead of time,
+leading to later malfunction: PQgetResult would return nothing,
+potentially causing the calling application to enter a busy loop.
+
+Fix by making the SYNC queue element a barrier that can only be consumed
+when a SYNC message is received.
+
+Backpatch to 14.
+
+Reported by: Иван Трофимов (Ivan Trofimov) <i.trofimow@yandex.ru>
+Discussion: https://postgr.es/m/17948-fcace7557e449957@postgresql.org_|_
