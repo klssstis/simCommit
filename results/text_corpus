@@ -19100,4 +19100,10 @@ when a SYNC message is received.
 Backpatch to 14.
 
 Reported by: Иван Трофимов (Ivan Trofimov) <i.trofimow@yandex.ru>
-Discussion: https://postgr.es/m/17948-fcace7557e449957@postgresql.org_|_
+Discussion: https://postgr.es/m/17948-fcace7557e449957@postgresql.org_|_Fix typo in comment
+
+Commit 98e675ed7af accidentally mistyped IDENTIFY_SYSTEM as
+IDENTIFY_SERVER. Backpatch to all supported branches.
+
+Reported-by: Alexander Lakhin <exclusion@gmail.com>
+Discussion: https://postgr.es/m/68138521-5345-8780-4390-1474afdcba1f@gmail.com_|_
