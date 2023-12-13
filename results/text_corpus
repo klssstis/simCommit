@@ -19106,4 +19106,25 @@ Commit 98e675ed7af accidentally mistyped IDENTIFY_SYSTEM as
 IDENTIFY_SERVER. Backpatch to all supported branches.
 
 Reported-by: Alexander Lakhin <exclusion@gmail.com>
-Discussion: https://postgr.es/m/68138521-5345-8780-4390-1474afdcba1f@gmail.com_|_
+Discussion: https://postgr.es/m/68138521-5345-8780-4390-1474afdcba1f@gmail.com_|_Prevent tuples to be marked as dead in subtransactions on standbys
+
+Dead tuples are ignored and are not marked as dead during recovery, as
+it can lead to MVCC issues on a standby because its xmin may not match
+with the primary.  This information is tracked by a field called
+"xactStartedInRecovery" in the transaction state data, switched on when
+starting a transaction in recovery.
+
+Unfortunately, this information was not correctly tracked when starting
+a subtransaction, because the transaction state used for the
+subtransaction did not update "xactStartedInRecovery" based on the state
+of its parent.  This would cause index scans done in subtransactions to
+return inconsistent data, depending on how the xmin of the primary
+and/or the standby evolved.
+
+This is broken since the introduction of hot standby in efc16ea52067, so
+backpatch all the way down.
+
+Author: Fei Changhong
+Reviewed-by: Kyotaro Horiguchi
+Discussion: https://postgr.es/m/tencent_C4D907A5093C071A029712E73B43C6512706@qq.com
+Backpatch-through: 12_|_
