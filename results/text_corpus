@@ -19127,4 +19127,48 @@ backpatch all the way down.
 Author: Fei Changhong
 Reviewed-by: Kyotaro Horiguchi
 Discussion: https://postgr.es/m/tencent_C4D907A5093C071A029712E73B43C6512706@qq.com
-Backpatch-through: 12_|_
+Backpatch-through: 12_|_pageinspect: Fix failure with hash_bitmap_info() for partitioned indexes
+
+This function reads directly a page from a relation, relying on
+index_open() to open the index to read from.  Unfortunately, this would
+crash when using partitioned indexes, as these can be opened with
+index_open() but they have no physical pages.
+
+Alexander has fixed the module, while I have written the test.
+
+Author: Alexander Lakhin, Michael Paquier
+Discussion: https://postgr.es/m/18246-f4d9ff7cb3af77e6@postgresql.org
+Backpatch-through: 12_|_pgstattuple: Fix failure with pgstathashindex() for partitioned indexes
+
+As coded, the function relied on index_open() when opening an index
+relation, allowing partitioned indexes to be processed by
+pgstathashindex().  This was leading to a "could not open file" error
+because partitioned indexes have no physical files, or to a crash with
+an assertion failure (like on HEAD).
+
+This issue is fixed by applying the same checks as the other stat
+functions for indexes, with a lookup at both RELKIND_INDEX and the index
+AM expected.
+
+Author: Alexander Lakhin
+Discussion: https://postgr.es/m/18246-f4d9ff7cb3af77e6@postgresql.org
+Backpatch-through: 12_|_compute_bitmap_pages' loop_count parameter should be double not int.
+
+The value was double in the original implementation of this logic.
+Commit da08a6598 pulled it out into a subroutine, but carelessly
+declared the parameter as int when it should have been double.
+On most platforms, the only ill effect would be to clamp the value
+to be not more than INT_MAX, which would seldom be exceeded and
+probably wouldn't change the estimates too much anyway.  Nonetheless,
+it's wrong and can cause complaints from ubsan.
+
+While here, improve the comments and parameter names.
+
+This is an ABI change in a globally exposed subroutine, so
+back-patching would create some risk of breaking extensions.
+The value of the fix doesn't seem high enough to warrant taking
+that risk, so fix in HEAD only.
+
+Per report from Alexander Lakhin.
+
+Discussion: https://postgr.es/m/f5e15fe1-202d-1936-f47c-f0c69a936b72@gmail.com_|_
