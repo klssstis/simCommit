@@ -19171,4 +19171,22 @@ that risk, so fix in HEAD only.
 
 Per report from Alexander Lakhin.
 
-Discussion: https://postgr.es/m/f5e15fe1-202d-1936-f47c-f0c69a936b72@gmail.com_|_
+Discussion: https://postgr.es/m/f5e15fe1-202d-1936-f47c-f0c69a936b72@gmail.com_|_Prevent integer overflow when forming tuple width estimates.
+
+It's at least theoretically possible to overflow int32 when adding up
+column width estimates to make a row width estimate.  (The bug example
+isn't terribly convincing as a real use-case, but perhaps wide joins
+would provide a more plausible route to trouble.)  This'd lead to
+assertion failures or silly planner behavior.  To forestall it, make
+the relevant functions compute their running sums in int64 arithmetic
+and then clamp to int32 range at the end.  We can reasonably assume
+that MaxAllocSize is a hard limit on actual tuple width, so clamping
+to that is simply a correction for dubious input values, and there's
+no need to go as far as widening width variables to int64 everywhere.
+
+Per bug #18247 from RekGRpth.  There've been no reports of this issue
+arising in practical cases, so I feel no need to back-patch.
+
+Richard Guo and Tom Lane
+
+Discussion: https://postgr.es/m/18247-11ac477f02954422@postgresql.org_|_
