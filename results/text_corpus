@@ -19189,4 +19189,47 @@ arising in practical cases, so I feel no need to back-patch.
 
 Richard Guo and Tom Lane
 
-Discussion: https://postgr.es/m/18247-11ac477f02954422@postgresql.org_|_
+Discussion: https://postgr.es/m/18247-11ac477f02954422@postgresql.org_|_Avoid trying to fetch metapage of an SPGist partitioned index.
+
+This is necessary when spgcanreturn() is invoked on a partitioned
+index, and the failure might be reachable in other scenarios as
+well.  The rest of what spgGetCache() does is perfectly sensible
+for a partitioned index, so we should allow it to go through.
+
+I think the main takeaway from this is that we lack sufficient test
+coverage for non-btree partitioned indexes.  Therefore, I added
+simple test cases for brin and gin as well as spgist (hash and
+gist AMs were covered already in indexing.sql).
+
+Per bug #18256 from Alexander Lakhin.  Although the known test case
+only fails since v16 (3c569049b), I've got no faith at all that there
+aren't other ways to reach this problem; so back-patch to all
+supported branches.
+
+Discussion: https://postgr.es/m/18256-0b0e1b6e4a620f1b@postgresql.org_|_Fix BEFORE ROW trigger handling in cross-partition MERGE update.
+
+Fix a bug during MERGE if a cross-partition update is attempted on a
+partitioned table with a BEFORE DELETE ROW trigger that returns NULL,
+to prevent the update. This would cause an error to be thrown, or an
+assert failure in an assert-enabled build.
+
+This was an oversight in 9321c79c86, which failed to properly
+distinguish a DELETE prevented by a trigger from one prevented by a
+concurrent update. Fix by having ExecDelete() return the TM_Result
+status to ExecCrossPartitionUpdate(), so that it can distinguish the
+two cases, and make ExecCrossPartitionUpdate() return the TM_Result
+status to ExecUpdateAct(), so that it can return the correct status
+from a concurrent update.
+
+In addition, ensure that the command tag is correctly updated by
+having ExecMergeMatched() pass canSetTag to ExecUpdateAct(), rather
+than passing false, so that it updates the command tag if it does a
+cross-partition update, making this code path in ExecMergeMatched()
+consistent with ExecUpdate().
+
+Per bug #18238 from Alexander Lakhin. Back-patch to v15, where MERGE
+was introduced.
+
+Dean Rasheed, reviewed by Richard Guo and Jian He.
+
+Discussion: https://postgr.es/m/18238-2f2bdc7f720180b9%40postgresql.org_|_
