@@ -19232,4 +19232,23 @@ was introduced.
 
 Dean Rasheed, reviewed by Richard Guo and Jian He.
 
-Discussion: https://postgr.es/m/18238-2f2bdc7f720180b9%40postgresql.org_|_
+Discussion: https://postgr.es/m/18238-2f2bdc7f720180b9%40postgresql.org_|_Fix a comment for remove_self_joins_recurse()
+
+Discussion: https://postgr.es/m/18187-831da249cbd2ff8e%40postgresql.org
+Author: Richard Guo
+Reviewed-by: Andrei Lepikhov_|_Don't constrain self-join removal due to PHVs
+
+Self-join removal appears to be safe to apply with placeholder variables
+as long as we handle PlaceHolderVar in replace_varno_walker() and replace
+relid in phinfo->ph_lateral.
+
+Discussion: https://postgr.es/m/18187-831da249cbd2ff8e%40postgresql.org
+Author: Richard Guo
+Reviewed-by: Andrei Lepikhov_|_Handle PlaceHolderVar case in replace_varno_walker
+
+This commit also retires sje_walker.  This increases the generalty of replacing
+varno in the parse tree and simplifies the code.
+
+Discussion: https://postgr.es/m/18187-831da249cbd2ff8e%40postgresql.org
+Author: Richard Guo
+Reviewed-by: Andrei Lepikhov_|_
