@@ -19251,4 +19251,7 @@ varno in the parse tree and simplifies the code.
 
 Discussion: https://postgr.es/m/18187-831da249cbd2ff8e%40postgresql.org
 Author: Richard Guo
-Reviewed-by: Andrei Lepikhov_|_
+Reviewed-by: Andrei Lepikhov_|_Fix typos in simplehash.h
+
+Author: Richard Guo <guofenglinux@gmail.com>
+Discussion: https://www.postgresql.org/message-id/flat/18252-d46d27900a277d87@postgresql.org_|_
