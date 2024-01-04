@@ -19254,4 +19254,37 @@ Author: Richard Guo
 Reviewed-by: Andrei Lepikhov_|_Fix typos in simplehash.h
 
 Author: Richard Guo <guofenglinux@gmail.com>
-Discussion: https://www.postgresql.org/message-id/flat/18252-d46d27900a277d87@postgresql.org_|_
+Discussion: https://www.postgresql.org/message-id/flat/18252-d46d27900a277d87@postgresql.org_|_Fix use of incorrect TupleTableSlot in DISTINCT aggregates
+
+1349d2790 added code to allow DISTINCT and ORDER BY aggregates to work
+more efficiently by using presorted input.  That commit added some code
+that made use of the AggState's tmpcontext and adjusted the
+ecxt_outertuple and ecxt_innertuple slots before checking if the current
+row is distinct from the previously seen row.  That code forgot to set the
+TupleTableSlots back to what they were originally, which could result in
+errors such as:
+
+ERROR:  attribute 1 of type record has wrong type
+
+This only affects aggregate functions which have multiple arguments when
+DISTINCT is used.  For example: string_agg(DISTINCT col, ', ')
+
+Thanks to Tom Lane for identifying the breaking commit.
+
+Bug: #18264
+Reported-by: Vojtěch Beneš
+Discussion: https://postgr.es/m/18264-e363593d7e9feb7d@postgresql.org
+Backpatch-through: 16, where 1349d2790 was added_|_Avoid masking EOF (no-password-supplied) conditions in auth.c.
+
+CheckPWChallengeAuth() would return STATUS_ERROR if the user does not
+exist or has no password assigned, even if the client disconnected
+without responding to the password challenge (as libpq often will,
+for example).  We should return STATUS_EOF in that case, and the
+lower-level functions do, but this code level got it wrong since the
+refactoring done in 7ac955b34.  This breaks the intent of not logging
+anything for EOF cases (cf. comments in auth_failed()) and might
+also confuse users of ClientAuthentication_hook.
+
+Per report from Liu Lang.  Back-patch to all supported versions.
+
+Discussion: https://postgr.es/m/b725238c-539d-cb09-2bff-b5e6cb2c069c@esgyn.cn_|_
