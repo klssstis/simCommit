@@ -19287,4 +19287,22 @@ also confuse users of ClientAuthentication_hook.
 
 Per report from Liu Lang.  Back-patch to all supported versions.
 
-Discussion: https://postgr.es/m/b725238c-539d-cb09-2bff-b5e6cb2c069c@esgyn.cn_|_
+Discussion: https://postgr.es/m/b725238c-539d-cb09-2bff-b5e6cb2c069c@esgyn.cn_|_Fix corruption of local buffer state during extend of temp relation
+
+A typo has been introduced by 31966b151e6a when updating the state of a
+local buffer when a temporary relation is extended, for the case of a
+block included in the relation range extended, when it is already found
+in the hash table holding the local buffers.  In this case, BM_VALID
+should be cleared, but the buffer state was changed so as BM_VALID
+remained while clearing the other flags.
+
+As reported on the thread, it was possible to corrupt the state of the
+local buffers on ENOSPC, but the states would be corrupted on any kind
+of ERROR during the relation extend (like partial writes or some other
+errno).
+
+Reported-by: Alexander Lakhin
+Author: Tender Wang
+Reviewed-by: Richard Guo, Alexander Lakhin, Michael Paquier
+Discussion: https://postgr.es/m/18259-6e256429825dd435@postgresql.org
+Backpatch-through: 16_|_
