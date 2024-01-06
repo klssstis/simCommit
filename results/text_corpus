@@ -19305,4 +19305,27 @@ Reported-by: Alexander Lakhin
 Author: Tender Wang
 Reviewed-by: Richard Guo, Alexander Lakhin, Michael Paquier
 Discussion: https://postgr.es/m/18259-6e256429825dd435@postgresql.org
-Backpatch-through: 16_|_
+Backpatch-through: 16_|_Fix the issue that SJE mistakenly omits qual clauses
+
+When the SJE code handles the transfer of qual clauses from the removed
+relation to the remaining one, it replaces the Vars of the removed
+relation with the Vars of the remaining relation for each clause, and
+then reintegrates these clauses into the appropriate restriction or join
+clause lists, while attempting to avoid duplicates.
+
+However, the code compares RestrictInfo->clause to determine if two
+clauses are duplicates.  This is just flat wrong.  Two RestrictInfos
+with the same clause can have different required_relids,
+incompatible_relids, is_pushed_down, and so on.  This can cause qual
+clauses to be mistakenly omitted, leading to wrong results.
+
+This patch fixes it by comparing the entire RestrictInfos not just their
+clauses ignoring 'rinfo_serial' field (otherwise almost all RestrictInfos will
+be unique).  Making 'rinfo_serial' equal_ignore would break other code.  This
+is why this commit implements our own comparison function for checking the
+equality of RestrictInfos.
+
+Reported-by: Zuming Jiang
+Bug: #18261
+Discussion: https://postgr.es/m/18261-2a75d748c928609b%40postgresql.org
+Author: Richard Guo_|_
