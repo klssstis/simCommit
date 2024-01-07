@@ -19328,4 +19328,14 @@ equality of RestrictInfos.
 Reported-by: Zuming Jiang
 Bug: #18261
 Discussion: https://postgr.es/m/18261-2a75d748c928609b%40postgresql.org
-Author: Richard Guo_|_
+Author: Richard Guo_|_Fix oversized memory allocation in Parallel Hash Join
+
+During the calculations of the maximum for the number of buckets, take into
+account that later we round that to the next power of 2.
+
+Reported-by: Karen Talarico
+Bug: #16925
+Discussion: https://postgr.es/m/16925-ec96d83529d0d629%40postgresql.org
+Author: Thomas Munro, Andrei Lepikhov, Alexander Korotkov
+Reviewed-by: Alena Rybakina
+Backpatch-through: 12_|_
