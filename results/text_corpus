@@ -19338,4 +19338,12 @@ Bug: #16925
 Discussion: https://postgr.es/m/16925-ec96d83529d0d629%40postgresql.org
 Author: Thomas Munro, Andrei Lepikhov, Alexander Korotkov
 Reviewed-by: Alena Rybakina
-Backpatch-through: 12_|_
+Backpatch-through: 12_|_Fix integer-overflow problem in intarray's g_int_decompress().
+
+An array element equal to INT_MAX gave this code indigestion,
+causing an infinite loop that surely ended in SIGSEGV.  We fixed
+some nearby problems awhile ago (cf 757c5182f) but missed this.
+
+Report and diagnosis by Alexander Lakhin (bug #18273); patch by me
+
+Discussion: https://postgr.es/m/18273-9a832d1da122600c@postgresql.org_|_
