@@ -19346,4 +19346,12 @@ some nearby problems awhile ago (cf 757c5182f) but missed this.
 
 Report and diagnosis by Alexander Lakhin (bug #18273); patch by me
 
-Discussion: https://postgr.es/m/18273-9a832d1da122600c@postgresql.org_|_
+Discussion: https://postgr.es/m/18273-9a832d1da122600c@postgresql.org_|_Strengthen tests for 5ef34a8fc3
+
+The test query in 5ef34a8fc3 is running over the empty emp1 table giving the
+same (empty) return both with and without the fix.  Add one row to that table
+to make not just the test query plan, but also the test query result different.
+
+Reported-by: Richard Guo
+Bug: #18261
+Discussion: https://postgr.es/m/CAMbWs49igjcszLgicb4D1N21_5iNDoxheJ7KFmAcs_z%3DLx6jhg%40mail.gmail.com_|_
