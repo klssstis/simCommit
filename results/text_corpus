@@ -19354,4 +19354,12 @@ to make not just the test query plan, but also the test query result different.
 
 Reported-by: Richard Guo
 Bug: #18261
-Discussion: https://postgr.es/m/CAMbWs49igjcszLgicb4D1N21_5iNDoxheJ7KFmAcs_z%3DLx6jhg%40mail.gmail.com_|_
+Discussion: https://postgr.es/m/CAMbWs49igjcszLgicb4D1N21_5iNDoxheJ7KFmAcs_z%3DLx6jhg%40mail.gmail.com_|_Fix documentation for wal_summary_keep_time.
+
+The documentation for this parameter lists its type as boolean, but
+it is actually an integer.  Furthermore, there is no mention of how
+the value is interpreted when specified without units.  This commit
+fixes these oversights in commit 174c480508.
+
+Co-authored-by: Hubert Depesz Lubaczewski
+Discussion: https://postgr.es/m/ZZwkujFihO2uqKwp%40depesz.com_|_
