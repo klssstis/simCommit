@@ -19362,4 +19362,19 @@ the value is interpreted when specified without units.  This commit
 fixes these oversights in commit 174c480508.
 
 Co-authored-by: Hubert Depesz Lubaczewski
-Discussion: https://postgr.es/m/ZZwkujFihO2uqKwp%40depesz.com_|_
+Discussion: https://postgr.es/m/ZZwkujFihO2uqKwp%40depesz.com_|_Handle WindowClause.runCondition in tree walker/mutator functions.
+
+Commit 9d9c02ccd, which added the notion of a "run condition" for
+window functions, neglected to teach nodeFuncs.c to process the new
+field.  Remarkably, that doesn't seem to have had any ill effects
+before we invented Var.varnullingrels, but now it can cause visible
+failures in join-removal scenarios.
+
+I have no faith that there's not reachable problems in v15 too,
+so back-patch the code change to v15 where 9d9c02ccd came in.
+The test case seems irrelevant to v15, though.
+
+Per bug #18277 from Zuming Jiang.  Diagnosis and patch by
+Richard Guo.
+
+Discussion: https://postgr.es/m/18277-089ead83b329a2fd@postgresql.org_|_
