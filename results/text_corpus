@@ -19377,4 +19377,25 @@ The test case seems irrelevant to v15, though.
 Per bug #18277 from Zuming Jiang.  Diagnosis and patch by
 Richard Guo.
 
-Discussion: https://postgr.es/m/18277-089ead83b329a2fd@postgresql.org_|_
+Discussion: https://postgr.es/m/18277-089ead83b329a2fd@postgresql.org_|_Allow subquery pullup to wrap a PlaceHolderVar in another one.
+
+The code for wrapping subquery output expressions in PlaceHolderVars
+believed that if the expression already was a PlaceHolderVar, it was
+never necessary to wrap that in another one.  That's wrong if the
+expression is underneath an outer join and involves a lateral
+reference to outside that scope: failing to add an additional PHV
+risks evaluating the expression at the wrong place and hence not
+forcing it to null when the outer join should do so.  This is an
+oversight in commit 9e7e29c75, which added logic to forcibly wrap
+lateral-reference Vars in PlaceHolderVars, but didn't see that the
+adjacent case for PlaceHolderVars needed the same treatment.
+
+The test case we have for this doesn't fail before 4be058fe9, but now
+that I see the problem I wonder if it is possible to demonstrate
+related errors before that.  That's moot though, since all such
+branches are out of support.
+
+Per bug #18284 from Holger Reise.  Back-patch to all supported
+branches.
+
+Discussion: https://postgr.es/m/18284-47505a20c23647f8@postgresql.org_|_
