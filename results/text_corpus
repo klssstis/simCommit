@@ -19398,4 +19398,21 @@ branches are out of support.
 Per bug #18284 from Holger Reise.  Back-patch to all supported
 branches.
 
-Discussion: https://postgr.es/m/18284-47505a20c23647f8@postgresql.org_|_
+Discussion: https://postgr.es/m/18284-47505a20c23647f8@postgresql.org_|_Re-validate connection string in libpqrcv_connect().
+
+A superuser may create a subscription with password_required=true, but
+which uses a connection string without a password.
+
+Previously, if the owner of such a subscription was changed to a
+non-superuser, the non-superuser was able to utilize a password from
+another source (like a password file or the PGPASSWORD environment
+variable), which should not have been allowed.
+
+This commit adds a step to re-validate the connection string before
+connecting.
+
+Reported-by: Jeff Davis
+Author: Vignesh C
+Reviewed-by: Peter Smith, Robert Haas, Amit Kapila
+Discussion: https://www.postgresql.org/message-id/flat/e5892973ae2a80a1a3e0266806640dae3c428100.camel%40j-davis.com
+Backpatch-through: 16_|_
