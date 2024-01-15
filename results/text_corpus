@@ -19415,4 +19415,47 @@ Reported-by: Jeff Davis
 Author: Vignesh C
 Reviewed-by: Peter Smith, Robert Haas, Amit Kapila
 Discussion: https://www.postgresql.org/message-id/flat/e5892973ae2a80a1a3e0266806640dae3c428100.camel%40j-davis.com
-Backpatch-through: 16_|_
+Backpatch-through: 16_|_Reduce dependency to money data type in main regression test suite
+
+Most of these tests have been introduced in 6dd8b0080787, to check for
+behaviors related to hashing and hash plans, and money is a data type
+with btree support but no hash functions.  These tests are switched to
+use varbit instead, to provide the same coverage.
+
+Some other tests historically used money but don't really need it for
+what they wanted to test (see rules.sql).  Plans and coverage are
+unchanged after the modifications done here.
+
+Support for money may be removed a a later point, but this needs more
+discussion.
+
+Discussion: https://postgr.es/m/18240-c5da758d7dc1ecf0@postgresql.org_|_Prevent access to an unpinned buffer in BEFORE ROW UPDATE triggers.
+
+When ExecBRUpdateTriggers switches to a new target tuple as a result
+of the EvalPlanQual logic, it must form a new proposed update tuple.
+Since commit 86dc90056, that tuple (the result of
+ExecGetUpdateNewTuple) has been a virtual tuple that might contain
+pointers to by-ref fields of the new target tuple (in "oldslot").
+However, immediately after that we materialize oldslot, causing it to
+drop its buffer pin, whereupon the by-ref pointers are unsafe to use.
+This is a live bug only when the new target tuple is in a different
+page than the original target tuple, since we do still hold a pin on
+the original one.  (Before 86dc90056, there was no bug because the
+EPQ plantree would hold a pin on the new target tuple; but now that's
+not assured.)  To fix, forcibly materialize the new tuple before we
+materialize oldslot.  This costs nothing since we would have done that
+shortly anyway.
+
+The real-world impact of this is probably minimal.  A visible failure
+could occur if the new target tuple's buffer were recycled for some
+other page in the short interval before we materialize newslot within
+the trigger-calling loop; but that's quite unlikely given that we'd
+just touched that page.  There's a larger hazard that some other
+process could prune and repack that page within the window.  We have
+lock on the new target tuple, but that wouldn't prevent it being moved
+on the page.
+
+Alexander Lakhin and Tom Lane, per bug #17798 from Alexander Lakhin.
+Back-patch to v14 where 86dc90056 came in.
+
+Discussion: https://postgr.es/m/17798-0907404928dcf0dd@postgresql.org_|_
