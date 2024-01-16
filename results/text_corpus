@@ -19458,4 +19458,23 @@ on the page.
 Alexander Lakhin and Tom Lane, per bug #17798 from Alexander Lakhin.
 Back-patch to v14 where 86dc90056 came in.
 
-Discussion: https://postgr.es/m/17798-0907404928dcf0dd@postgresql.org_|_
+Discussion: https://postgr.es/m/17798-0907404928dcf0dd@postgresql.org_|_Fix 'negative bitmapset member' error
+
+When removing a useless join, we'd remove PHVs that are not used at join
+partner rels or above the join.  A PHV that references the join's relid
+in ph_eval_at is logically "above" the join and thus should not be
+removed.  We have the following check for that:
+
+    !bms_is_member(ojrelid, phinfo->ph_eval_at)
+
+However, in the case of SJE removing a useless inner join, 'ojrelid' is
+set to -1, which would trigger the "negative bitmapset member not
+allowed" error in bms_is_member().
+
+Fix it by skipping examining ojrelid for inner joins in this check.
+
+Reported-by: Zuming Jiang
+Bug: #18260
+Discussion: https://postgr.es/m/18260-1b6a0c4ae311b837%40postgresql.org
+Author: Richard Guo
+Reviewed-by: Andrei Lepikhov_|_
