@@ -19477,4 +19477,36 @@ Reported-by: Zuming Jiang
 Bug: #18260
 Discussion: https://postgr.es/m/18260-1b6a0c4ae311b837%40postgresql.org
 Author: Richard Guo
-Reviewed-by: Andrei Lepikhov_|_
+Reviewed-by: Andrei Lepikhov_|_Add support for parsing of large XML data (>= 10MB)
+
+This commit adds XML_PARSE_HUGE to the libxml2 functions used in core
+for the parsing of XML objects, raising up the original limit of 10MB
+supported by libxml2.
+
+In most code paths of upstream, XML_MAX_TEXT_LENGTH (10^7) is the
+historical limit that gets upgraded to XML_MAX_HUGE_LENGTH (10^9) once
+XML_PARSE_HUGE is given to the parser calls.  These are still limited by
+any palloc() calls for text, up to 1GB.
+
+This offers the possibility to handle within the backend XML objects
+larger than 10MB in general, with also a higher depth limit.  This
+change affects the contrib module xml2, the xml data type and SQL/XML.
+
+Author: Dmitry Koval
+Reviewed-by: Tom Lane, Michael Paquier
+Discussion: https://postgr.es/m/18274-98d16bc03520665f@postgresql.org_|_xml2: Replace deprecated routines with recommended ones
+
+Some functions are used in the tree and are currently marked as
+deprecated by upstream.  This commit refreshes the code to use the
+recommended functions, leading to the following changes:
+- xmlSubstituteEntitiesDefault() is gone, and needs to be replaced with
+XML_PARSE_NOENT for the paths doing the parsing.
+- xmlParseMemory() -> xmlReadMemory().
+
+These functions, as well as more functions setting global states, have
+been officially marked as deprecated by upstream in August 2022.  Their
+replacements exist since the 2001-ish area, as far as I have checked,
+so that should be safe.
+
+Author: Dmitry Koval
+Discussion: https://postgr.es/m/18274-98d16bc03520665f@postgresql.org_|_
