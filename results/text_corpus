@@ -19509,4 +19509,30 @@ replacements exist since the 2001-ish area, as far as I have checked,
 so that should be safe.
 
 Author: Dmitry Koval
-Discussion: https://postgr.es/m/18274-98d16bc03520665f@postgresql.org_|_
+Discussion: https://postgr.es/m/18274-98d16bc03520665f@postgresql.org_|_Fix buildfarm error from commit 5c31669058.
+
+Skip test when not using unix domain sockets.
+
+Discussion: https://postgr.es/m/CALDaNm29-8OozsBWo9H6DN_Tb_3yA1QjRJput-KhaN8ncDJtJA@mail.gmail.com
+Backpatch-through: 16_|_Fix plpgsql to allow new-style SQL CREATE FUNCTION as a SQL command.
+
+plpgsql fails on new-style CREATE FUNCTION/PROCEDURE commands within
+a routine or DO block, because make_execsql_stmt believes that a
+semicolon token always terminates a SQL command.  Now, that's actually
+been wrong since the day it was written, because CREATE RULE has long
+allowed multiple rule actions separated by semicolons.  But there are
+few enough people using multi-action rules that there was never an
+attempt to fix it.  New-style SQL functions, though, are popular.
+
+psql has this same problem of "does this semicolon really terminate
+the command?".  It deals with CREATE RULE by counting parenthesis
+nesting depth: a semicolon within parens doesn't end a command.
+Commits e717a9a18 and 029c5ac03 created a similar heuristic to count
+matching BEGIN/END pairs (but only within CREATEs, so as not to be
+fooled by plain BEGIN).  That's survived several releases now without
+trouble reports, so let's just absorb those heuristics into plpgsql.
+
+Per report from Samuel Dussault.  Back-patch to v14 where new-style
+SQL function syntax came in.
+
+Discussion: https://postgr.es/m/YT2PR01MB88552C3E9AD40A6C038774A781722@YT2PR01MB8855.CANPRD01.PROD.OUTLOOK.COM_|_
