@@ -19535,4 +19535,19 @@ trouble reports, so let's just absorb those heuristics into plpgsql.
 Per report from Samuel Dussault.  Back-patch to v14 where new-style
 SQL function syntax came in.
 
-Discussion: https://postgr.es/m/YT2PR01MB88552C3E9AD40A6C038774A781722@YT2PR01MB8855.CANPRD01.PROD.OUTLOOK.COM_|_
+Discussion: https://postgr.es/m/YT2PR01MB88552C3E9AD40A6C038774A781722@YT2PR01MB8855.CANPRD01.PROD.OUTLOOK.COM_|_Re-disallow Memoize for parameterized nested loops with join filters
+
+This was previously fixed in 9e215378d but got broken again as a result
+of 2489d76c4.  It seems that commit causes ppi_clauses to contain
+duplicate clauses and it's no longer safe to check the list_length of
+that list to determine if there are join conditions other than what's
+mentioned in ppi_clauses.
+
+Here we adjust the check to count the distinct rinfo_serial mentioned in
+ppi_clauses.  We expect that extra->restrictlist won't have duplicate
+rinfo_serials.
+
+Reported-by: Amadeo Gallardo
+Author: Richard Guo
+Discussion: https://postgr.es/m/CADFREbW-BLJd7-a5J%2B5wjVumeFG1ByXiSOFzMtkmY_SDWckTxw%40mail.gmail.com
+Backpatch-through: 16, where 2489d76c4 was introduced._|_
