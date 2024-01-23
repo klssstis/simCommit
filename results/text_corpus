@@ -19550,4 +19550,72 @@ rinfo_serials.
 Reported-by: Amadeo Gallardo
 Author: Richard Guo
 Discussion: https://postgr.es/m/CADFREbW-BLJd7-a5J%2B5wjVumeFG1ByXiSOFzMtkmY_SDWckTxw%40mail.gmail.com
-Backpatch-through: 16, where 2489d76c4 was introduced._|_
+Backpatch-through: 16, where 2489d76c4 was introduced._|_Add better handling of redundant IS [NOT] NULL quals
+
+Until now PostgreSQL has not been very smart about optimizing away IS
+NOT NULL base quals on columns defined as NOT NULL.  The evaluation of
+these needless quals adds overhead.  Ordinarily, anyone who came
+complaining about that would likely just have been told to not include
+the qual in their query if it's not required.  However, a recent bug
+report indicates this might not always be possible.
+
+Bug 17540 highlighted that when we optimize Min/Max aggregates the IS NOT
+NULL qual that the planner adds to make the rewritten plan ignore NULLs
+can cause issues with poor index choice.  That particular case
+demonstrated that other quals, especially ones where no statistics are
+available to allow the planner a chance at estimating an approximate
+selectivity for can result in poor index choice due to cheap startup paths
+being prefered with LIMIT 1.
+
+Here we take generic approach to fixing this by having the planner check
+for NOT NULL columns and just have the planner remove these quals (when
+they're not needed) for all queries, not just when optimizing Min/Max
+aggregates.
+
+Additionally, here we also detect IS NULL quals on a NOT NULL column and
+transform that into a gating qual so that we don't have to perform the
+scan at all.  This also works for join relations when the Var is not
+nullable by any outer join.
+
+This also helps with the self-join removal work as it must replace
+strict join quals with IS NOT NULL quals to ensure equivalence with the
+original query.
+
+Author: David Rowley, Richard Guo, Andy Fan
+Reviewed-by: Richard Guo, David Rowley
+Discussion: https://postgr.es/m/CAApHDvqg6XZDhYRPz0zgOcevSMo0d3vxA9DvHrZtKfqO30WTnw@mail.gmail.com
+Discussion: https://postgr.es/m/17540-7aa1855ad5ec18b4%40postgresql.org_|_Add better handling of redundant IS [NOT] NULL quals
+
+Until now PostgreSQL has not been very smart about optimizing away IS
+NOT NULL base quals on columns defined as NOT NULL.  The evaluation of
+these needless quals adds overhead.  Ordinarily, anyone who came
+complaining about that would likely just have been told to not include
+the qual in their query if it's not required.  However, a recent bug
+report indicates this might not always be possible.
+
+Bug 17540 highlighted that when we optimize Min/Max aggregates the IS NOT
+NULL qual that the planner adds to make the rewritten plan ignore NULLs
+can cause issues with poor index choice.  That particular case
+demonstrated that other quals, especially ones where no statistics are
+available to allow the planner a chance at estimating an approximate
+selectivity for can result in poor index choice due to cheap startup paths
+being prefered with LIMIT 1.
+
+Here we take generic approach to fixing this by having the planner check
+for NOT NULL columns and just have the planner remove these quals (when
+they're not needed) for all queries, not just when optimizing Min/Max
+aggregates.
+
+Additionally, here we also detect IS NULL quals on a NOT NULL column and
+transform that into a gating qual so that we don't have to perform the
+scan at all.  This also works for join relations when the Var is not
+nullable by any outer join.
+
+This also helps with the self-join removal work as it must replace
+strict join quals with IS NOT NULL quals to ensure equivalence with the
+original query.
+
+Author: David Rowley, Richard Guo, Andy Fan
+Reviewed-by: Richard Guo, David Rowley
+Discussion: https://postgr.es/m/CAApHDvqg6XZDhYRPz0zgOcevSMo0d3vxA9DvHrZtKfqO30WTnw@mail.gmail.com
+Discussion: https://postgr.es/m/17540-7aa1855ad5ec18b4%40postgresql.org_|_
