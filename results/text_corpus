@@ -19618,4 +19618,18 @@ original query.
 Author: David Rowley, Richard Guo, Andy Fan
 Reviewed-by: Richard Guo, David Rowley
 Discussion: https://postgr.es/m/CAApHDvqg6XZDhYRPz0zgOcevSMo0d3vxA9DvHrZtKfqO30WTnw@mail.gmail.com
-Discussion: https://postgr.es/m/17540-7aa1855ad5ec18b4%40postgresql.org_|_
+Discussion: https://postgr.es/m/17540-7aa1855ad5ec18b4%40postgresql.org_|_Fix ALTER TABLE .. ADD COLUMN with complex inheritance trees
+
+This command, when used to add a column on a parent table with a complex
+inheritance tree, tried to update multiple times the same tuple in
+pg_attribute for a child table when incrementing attinhcount, causing
+failures with "tuple already updated by self" because of a missing
+CommandCounterIncrement() between two updates.
+
+This exists for a rather long time, so backpatch all the way down.
+
+Reported-by: Alexander Lakhin
+Author: Tender Wang
+Reviewed-by: Richard Guo
+Discussion: https://postgr.es/m/18297-b04cd83a55b51e35@postgresql.org
+Backpatch-through: 12_|_
