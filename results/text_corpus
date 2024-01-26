@@ -19632,4 +19632,39 @@ Reported-by: Alexander Lakhin
 Author: Tender Wang
 Reviewed-by: Richard Guo
 Discussion: https://postgr.es/m/18297-b04cd83a55b51e35@postgresql.org
-Backpatch-through: 12_|_
+Backpatch-through: 12_|_Reindex toast before its main relation in reindex_relation()
+
+This commit changes the order of reindex on a relation so as a toast
+relation is processed before its main relation.
+
+The original order, where a rebuild was first done for the indexes on
+the main table, could be a problem in the event of a corruption of a
+toast index, because, as scans of a toast index may be required to
+rebuild the indexes on the main relation, this could lead to failures
+with REINDEX TABLE without being able to fix anything.
+
+Rebuilding corrupted toast indexes before this change was possible but
+troublesome, as it was necessary to issue a REINDEX on the toast
+relation first, followed by a REINDEX on the main relation.  Changing
+the order of these operations should make things easier when rebuilding
+corrupted indexes, as toast indexes would be rebuilt before they are
+used for the indexes on the main relation.
+
+Per request from Richard Vesely.
+
+Author: Gurjeet Singh
+Reviewed-by: Nathan Bossart, Michael Paquier
+Discussion: https://postgr.es/m/18016-2bd9b549b1fe49b3@postgresql.org_|_Fix comment in index.c
+
+Extracted from a larger patch by the same author.
+
+Author: Gurjeet Singh
+Discussion: https://postgr.es/m/CABwTF4WX=m5pQvKXvLFJoEH=hSd6O=iZSqxVqHKjFm+iL-AO=w@mail.gmail.com_|_Revert "Add support for parsing of large XML data (>= 10MB)"
+
+This reverts commit 2197d06224a1, following a discussion over a Coverity
+report where issues like the "Billion laugh attack" could cause the
+backend to waste CPU and memory even if a client applied checks on the
+size of the data given in input, and libxml2 does not offer guarantees
+that input limits are respected under XML_PARSE_HUGE.
+
+Discussion: https://postgr.es/m/ZbHlgrPLtBZyr_QW@paquier.xyz_|_
