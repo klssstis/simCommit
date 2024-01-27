@@ -19667,4 +19667,22 @@ backend to waste CPU and memory even if a client applied checks on the
 size of the data given in input, and libxml2 does not offer guarantees
 that input limits are respected under XML_PARSE_HUGE.
 
-Discussion: https://postgr.es/m/ZbHlgrPLtBZyr_QW@paquier.xyz_|_
+Discussion: https://postgr.es/m/ZbHlgrPLtBZyr_QW@paquier.xyz_|_Detect Julian-date overflow in timestamp[tz]_pl_interval.
+
+We perform addition of the days field of an interval via
+arithmetic on the Julian-date representation of the timestamp's date.
+This step is subject to int32 overflow, and we also should not let
+the Julian date become very negative, for fear of weird results from
+j2date.  (In the timestamptz case, allow a Julian date of -1 to pass,
+since it might convert back to zero after timezone rotation.)
+
+The additions of the months and microseconds fields could also
+overflow, of course.  However, I believe we need no additional
+checks there; the existing range checks should catch such cases.
+The difficulty here is that j2date's magic modular arithmetic could
+produce something that looks like it's in-range.
+
+Per bug #18313 from Christian Maurer.  This has been wrong for
+a long time, so back-patch to all supported branches.
+
+Discussion: https://postgr.es/m/18313-64d2c8952d81e84b@postgresql.org_|_
