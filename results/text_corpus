@@ -19685,4 +19685,46 @@ produce something that looks like it's in-range.
 Per bug #18313 from Christian Maurer.  This has been wrong for
 a long time, so back-patch to all supported branches.
 
-Discussion: https://postgr.es/m/18313-64d2c8952d81e84b@postgresql.org_|_
+Discussion: https://postgr.es/m/18313-64d2c8952d81e84b@postgresql.org_|_Fix locking when fixing an incomplete split of a GIN internal page
+
+ginFinishSplit() expects the caller to hold an exclusive lock on the
+buffer, but when finishing an earlier "leftover" incomplete split of
+an internal page, the caller held a shared lock. That caused an
+assertion failure in MarkBufferDirty(). Without assertions, it could
+lead to corruption if two backends tried to complete the split at the
+same time.
+
+On master, add a test case using the new injection point facility.
+
+Report and analysis by Fei Changhong. Backpatch the fix to all
+supported versions.
+
+Reviewed-by: Fei Changhong, Michael Paquier
+Discussion: https://www.postgresql.org/message-id/tencent_A3CE810F59132D8E230475A5F0F7A08C8307@qq.com_|_Fix DROP ROLE when specifying duplicated roles
+
+This commit fixes failures with "tuple already updated by self" when
+listing twice the same role and in a DROP ROLE query.
+
+This is an oversight in 6566133c5f52, that has introduced a two-phase
+logic in DropRole() where dependencies of all the roles to drop are
+removed in a first phase, with the roles themselves removed from
+pg_authid in a second phase.
+
+The code is simplified to not rely on a List of ObjectAddress built in
+the first phase used to remove the pg_authid entries in the second
+phase, switching to a list of OIDs.  Duplicated OIDs can be simply
+avoided in the first phase thanks to that.  Using ObjectAddress was not
+necessary for the roles as they are not used for anything specific to
+dependency.c, building all the ObjectAddress in the List with
+AuthIdRelationId as class ID.
+
+In 15 and older versions, where a single phase is used, DROP ROLE with
+duplicated role names would fail on "role \"blah\" does not exist" for
+the second entry after the CCI() done by the first deletion.  This is
+not really incorrect, but it does not seem worth changing based on a
+lack of complaints.
+
+Reported-by: Alexander Lakhin
+Reviewed-by: Tender Wang
+Discussion: https://postgr.es/m/18310-1eb233c5908189c8@postgresql.org
+Backpatch-through: 16_|_
