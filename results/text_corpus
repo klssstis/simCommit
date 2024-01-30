@@ -19727,4 +19727,18 @@ lack of complaints.
 Reported-by: Alexander Lakhin
 Reviewed-by: Tender Wang
 Discussion: https://postgr.es/m/18310-1eb233c5908189c8@postgresql.org
-Backpatch-through: 16_|_
+Backpatch-through: 16_|_Doc: mention foreign keys can reference unique indexes
+
+We seem to have only documented a foreign key can reference the columns of
+a primary key or unique constraint.  Here we adjust the documentation
+to mention columns in a non-partial unique index can be mentioned too.
+
+The header comment for transformFkeyCheckAttrs() also didn't mention
+unique indexes, so fix that too.  In passing make that header comment
+reflect reality in the various other aspects where it deviated from it.
+
+Bug: 18295
+Reported-by: Gilles PARC
+Author: Laurenz Albe, David Rowley
+Discussion: https://www.postgresql.org/message-id/18295-0ed0fac5c9f7b17b%40postgresql.org
+Backpatch-through: 12_|_
