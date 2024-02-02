@@ -19772,4 +19772,28 @@ These issues exist since at least their introduction in core with
 Reported-by: Alexander Lakhin
 Author: Tender Wang, Michael Paquier
 Discussion: https://postgr.es/m/18310-1eb233c5908189c8@postgresql.org
-Backpatch-through: 12_|_
+Backpatch-through: 12_|_Sync PG_VERSION file in CREATE DATABASE.
+
+An OS crash could leave PG_VERSION empty or missing.  The same symptom
+appeared in a backup by block device snapshot, taken after the next
+checkpoint and before the OS flushes the PG_VERSION blocks.  Device
+snapshots are not a documented backup method, however.  Back-patch to
+v15, where commit 9c08aea6a3090a396be334cc58c511edab05776a introduced
+STRATEGY=WAL_LOG and made it the default.
+
+Discussion: https://postgr.es/m/20240130195003.0a.nmisch@google.com_|_Handle interleavings between CREATE DATABASE steps and base backup.
+
+Restoring a base backup taken in the middle of CreateDirAndVersionFile()
+or write_relmap_file() would lose the function's effects.  The symptom
+was absence of the database directory, PG_VERSION file, or
+pg_filenode.map.  If missing the directory, recovery would fail.  Either
+missing file would not fail recovery but would render the new database
+unusable.  Fix CreateDirAndVersionFile() with the transam/README "action
+first and then write a WAL entry" strategy.  That has a side benefit of
+moving filesystem mutations out of a critical section, reducing the ways
+to PANIC.  Fix the write_relmap_file() call with a lock acquisition, so
+it interacts with checkpoints like non-CREATE DATABASE calls do.
+Back-patch to v15, where commit 9c08aea6a3090a396be334cc58c511edab05776a
+introduced STRATEGY=WAL_LOG and made it the default.
+
+Discussion: https://postgr.es/m/20240130195003.0a.nmisch@google.com_|_
