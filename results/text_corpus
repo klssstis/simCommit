@@ -19796,4 +19796,21 @@ it interacts with checkpoints like non-CREATE DATABASE calls do.
 Back-patch to v15, where commit 9c08aea6a3090a396be334cc58c511edab05776a
 introduced STRATEGY=WAL_LOG and made it the default.
 
-Discussion: https://postgr.es/m/20240130195003.0a.nmisch@google.com_|_
+Discussion: https://postgr.es/m/20240130195003.0a.nmisch@google.com_|_Fix wrong logic in TransactionIdInRecentPast()
+
+The TransactionIdInRecentPast() should return false for all the transactions
+older than TransamVariables->oldestClogXid.  However, the function contains
+a bug in comparison FullTransactionId to TransactionID allowing full
+transactions between nextXid - 2^32 and oldestClogXid - 2^31.
+
+This commit fixes TransactionIdInRecentPast() by turning the oldestClogXid into
+FullTransactionId first, then performing the comparison.
+
+Backpatch to all supported versions.
+
+Reported-by: Egor Chindyaskin
+Bug: 18212
+Discussion: https://postgr.es/m/18212-547307f8adf57262%40postgresql.org
+Author: Karina Litskevich
+Reviewed-by: Kyotaro Horiguchi
+Backpatch-through: 12_|_
