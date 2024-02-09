@@ -19813,4 +19813,18 @@ Bug: 18212
 Discussion: https://postgr.es/m/18212-547307f8adf57262%40postgresql.org
 Author: Karina Litskevich
 Reviewed-by: Kyotaro Horiguchi
-Backpatch-through: 12_|_
+Backpatch-through: 12_|_Fix usage of aggregate pathkeys in group_keys_reorder_by_pathkeys()
+
+group_keys_reorder_by_pathkeys() function searched for matching pathkeys
+within root->group_pathkeys.  That could lead to picking an aggregate pathkey
+and using its pathkey->pk_eclass->ec_sortref as an argument of
+get_sortgroupref_clause_noerr().  Given that ec_sortref of an aggregate pathkey
+references aggregate targetlist not query targetlist, this leads to incorrect
+query optimization.
+
+Fix this by looking for matching pathkeys only within the first
+num_groupby_pathkeys pathkeys.
+
+Reported-by: David G. Johnston
+Discussion: https://postgr.es/m/CAKFQuwY3Ek%3DcLThgd8FdaSc5JRDVt0FaV00gMcWra%2BTAR4gGUw%40mail.gmail.com
+Author: Andrei Lepikhov, Alexander Korotkov_|_
