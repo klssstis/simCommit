@@ -19827,4 +19827,24 @@ num_groupby_pathkeys pathkeys.
 
 Reported-by: David G. Johnston
 Discussion: https://postgr.es/m/CAKFQuwY3Ek%3DcLThgd8FdaSc5JRDVt0FaV00gMcWra%2BTAR4gGUw%40mail.gmail.com
-Author: Andrei Lepikhov, Alexander Korotkov_|_
+Author: Andrei Lepikhov, Alexander Korotkov_|_Avoid concurrent calls to bindtextdomain().
+
+We previously supposed that it was okay for different threads to
+call bindtextdomain() concurrently (cf. commit 1f655fdc3).
+It now emerges that there's at least one gettext implementation
+in which that triggers an abort() crash, so let's stop doing that.
+Add mutexes guarding libpq's and ecpglib's calls, which are the
+only ones that need worry about multithreaded callers.
+
+Note: in libpq, we could perhaps have piggybacked on
+default_threadlock() to avoid defining a new mutex variable.
+I judge that not terribly safe though, since libpq_gettext could
+be called from code that is holding the default mutex.  If that
+were the first such call in the process, it'd fail.  An extra
+mutex is cheap insurance against unforeseen interactions.
+
+Per bug #18312 from Christian Maurer.  Back-patch to all
+supported versions.
+
+Discussion: https://postgr.es/m/18312-bbbabc8113592b78@postgresql.org
+Discussion: https://postgr.es/m/264860.1707163416@sss.pgh.pa.us_|_
