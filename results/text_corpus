@@ -19847,4 +19847,46 @@ Per bug #18312 from Christian Maurer.  Back-patch to all
 supported versions.
 
 Discussion: https://postgr.es/m/18312-bbbabc8113592b78@postgresql.org
-Discussion: https://postgr.es/m/264860.1707163416@sss.pgh.pa.us_|_
+Discussion: https://postgr.es/m/264860.1707163416@sss.pgh.pa.us_|_Fix 'mmap' DSM implementation with allocations larger than 4 GB
+
+Fixes bug #18341. Backpatch to all supported versions.
+
+Discussion: https://www.postgresql.org/message-id/18341-ce16599e7fd6228c@postgresql.org_|_Use a safer outfuncs/readfuncs representation for BitStrings.
+
+For a long time, our outfuncs.c code has supposed that the string
+contents of a BitString node could just be printed literally with
+no concern for quoting/escaping.  Now, that's okay if the string
+literal contains only valid binary or hex digits ... but our lexer
+doesn't check that, preferring to let bitin() be the sole authority
+on what's valid.  So we could have raw parse trees that contain
+incorrect BitString literals, and that can result in failures when
+WRITE_READ_PARSE_PLAN_TREES debugging is enabled.
+
+Fix by using outToken() to print the string field, and debackslash()
+to read it.  This results in a change in the emitted representation
+only in cases that would have failed before, and don't represent valid
+SQL in the first place.  Between that and the fact that we don't store
+raw parse trees in the catalogs, I judge this safe to apply without a
+catversion bump.
+
+Per bug #18340 from Alexander Lakhin.  Back-patch to v16; before that,
+we lacked readfuncs support for BitString nodes, so that the problem
+was only cosmetic.
+
+Discussion: https://postgr.es/m/18340-4aa1ae6ed4121912@postgresql.org_|_Skip .DS_Store files in server side utils
+
+The macOS Finder application creates .DS_Store files in directories
+when opened,  which creates problems for serverside utilities which
+expect all files to be PostgreSQL specific files.  Skip these files
+when encountered in pg_checksums, pg_rewind and pg_basebackup.
+
+This was extracted from a larger patchset for skipping hidden files
+and system files, where the concencus was to just skip these. Since
+this is equally likely to happen in every version, backpatch to all
+supported versions.
+
+Reported-by: Mark Guertin <markguertin@gmail.com>
+Reviewed-by: Michael Paquier <michael@paquier.xyz>
+Reviewed-by: Tobias Bussmann <t.bussmann@gmx.net>
+Discussion: https://postgr.es/m/E258CE50-AB0E-455D-8AAD-BB4FE8F882FB@gmail.com
+Backpatch-through: v12_|_
