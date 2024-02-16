@@ -19889,4 +19889,11 @@ Reported-by: Mark Guertin <markguertin@gmail.com>
 Reviewed-by: Michael Paquier <michael@paquier.xyz>
 Reviewed-by: Tobias Bussmann <t.bussmann@gmx.net>
 Discussion: https://postgr.es/m/E258CE50-AB0E-455D-8AAD-BB4FE8F882FB@gmail.com
-Backpatch-through: v12_|_
+Backpatch-through: v12_|_Doc: improve a couple of comments in postgresql.conf.sample.
+
+Clarify comments associated with max_parallel_workers and
+related settings.
+
+Per bug #18343 from Christopher Kline.
+
+Discussion: https://postgr.es/m/18343-3a5e903d1d3692ab@postgresql.org_|_
