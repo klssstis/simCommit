@@ -19896,4 +19896,78 @@ related settings.
 
 Per bug #18343 from Christopher Kline.
 
-Discussion: https://postgr.es/m/18343-3a5e903d1d3692ab@postgresql.org_|_
+Discussion: https://postgr.es/m/18343-3a5e903d1d3692ab@postgresql.org_|_Minor corrections for partition pruning
+
+When the partition pruning code finds an OpExpr with an operator that
+does not belong to the partition key's opfamily, the code checks to see
+if the negator of the operator is the opfamily's BTEqualStrategyNumber
+operator so that partition pruning can support that operator and invert
+the matching partitions.  Doing this only works for LIST partitioned
+tables.
+
+Here we fix a minor correctness issue where when we discover we're not
+pruning for a LIST partitioned table, we return PARTCLAUSE_NOMATCH.
+PARTCLAUSE_NOMATCH is only meant to be used when the clause may match
+another partitioned key column.  For this case, the clause is not going
+to be any more useful to another partitioned key as the partition strategy
+is not going to change from one key to the next.
+
+Noticed while working 4c2369ac5.  No backpatch because returning
+PARTCLAUSE_NOMATCH instead of PARTCLAUSE_UNSUPPORTED mostly just causes
+wasted effort checking subsequent partition keys against a clause that
+will never be used for pruning.
+
+In passing, correct a comment for get_matching_range_bounds() which
+mentions that an 'opstrategy' of 0 is supported.  It's not, so fix the
+comment.  This was pointed out by Alexander Lakhin.
+
+Discussion: https://postgr.es/m/CAApHDvqriy8mPOFJ_Bd66YGXJ4+XULpv-4YdB+ePdCQFztyisA@mail.gmail.com
+Discussion: https://postgr.es/m/312fb507-9b5e-cf83-d8ed-cd0da72a902c@gmail.com_|_Minor corrections for partition pruning
+
+When the partition pruning code finds an OpExpr with an operator that
+does not belong to the partition key's opfamily, the code checks to see
+if the negator of the operator is the opfamily's BTEqualStrategyNumber
+operator so that partition pruning can support that operator and invert
+the matching partitions.  Doing this only works for LIST partitioned
+tables.
+
+Here we fix a minor correctness issue where when we discover we're not
+pruning for a LIST partitioned table, we return PARTCLAUSE_NOMATCH.
+PARTCLAUSE_NOMATCH is only meant to be used when the clause may match
+another partitioned key column.  For this case, the clause is not going
+to be any more useful to another partitioned key as the partition strategy
+is not going to change from one key to the next.
+
+Noticed while working 4c2369ac5.  No backpatch because returning
+PARTCLAUSE_NOMATCH instead of PARTCLAUSE_UNSUPPORTED mostly just causes
+wasted effort checking subsequent partition keys against a clause that
+will never be used for pruning.
+
+In passing, correct a comment for get_matching_range_bounds() which
+mentions that an 'opstrategy' of 0 is supported.  It's not, so fix the
+comment.  This was pointed out by Alexander Lakhin.
+
+Discussion: https://postgr.es/m/CAApHDvqriy8mPOFJ_Bd66YGXJ4+XULpv-4YdB+ePdCQFztyisA@mail.gmail.com
+Discussion: https://postgr.es/m/312fb507-9b5e-cf83-d8ed-cd0da72a902c@gmail.com_|_Fix incorrect pruning of NULL partition for boolean IS NOT clauses
+
+Partition pruning wrongly assumed that, for a table partitioned on a
+boolean column, a clause in the form "boolcol IS NOT false" and "boolcol
+IS NOT true" could be inverted to correspondingly become "boolcol IS true"
+and "boolcol IS false".  These are not equivalent as the NOT version
+matches the opposite boolean value *and* NULLs.  This incorrect assumption
+meant that partition pruning pruned away partitions that could contain
+NULL values.
+
+Here we fix this by correctly not pruning partitions which could store
+NULLs.
+
+To be affected by this, the table must be partitioned by a NULLable boolean
+column and queries would have to contain "boolcol IS NOT false" or "boolcol
+IS NOT true".  This could result in queries filtering out NULL values
+with a LIST partitioned table and "ERROR:  invalid strategy number 0"
+for RANGE and HASH partitioned tables.
+
+Reported-by: Alexander Lakhin
+Bug: #18344
+Discussion: https://postgr.es/m/18344-8d3f00bada6d09c6@postgresql.org
+Backpatch-through: 12_|_
