@@ -19970,4 +19970,30 @@ for RANGE and HASH partitioned tables.
 Reported-by: Alexander Lakhin
 Bug: #18344
 Discussion: https://postgr.es/m/18344-8d3f00bada6d09c6@postgresql.org
-Backpatch-through: 12_|_
+Backpatch-through: 12_|_Doc: improve explanation of type interval, especially extract().
+
+The explanation of interval's behavior in datatype.sgml wasn't wrong
+exactly, but it was unclear, partly because it buried the lede about
+there being three internal fields.  Rearrange and wordsmith for more
+clarity.
+
+The discussion of extract() claimed that input of type date was
+handled by casting, but actually there's been a separate SQL function
+taking date for a very long time.  Also, it was mostly silent about
+how interval inputs are handled, but there are several field types
+for which it seems useful to be specific.
+
+Improve discussion of justify_days()/justify_hours() too.
+
+In passing, remove vertical space in some groups of examples,
+as there was little consistency about whether to have such space
+or not.  (I only did this within the datetime functions section;
+there are some related inconsistencies elsewhere.)
+
+Per discussion of bug #18348 from Michael Bondarenko.  There
+may be some code changes coming out of that discussion too,
+but we likely won't back-patch them.  This docs-only patch
+seems useful to back-patch, though I only carried it back to
+v13 because it didn't apply easily in v12.
+
+Discussion: https://postgr.es/m/18348-b097a3587dfde8a4@postgresql.org_|_
