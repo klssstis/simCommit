@@ -19996,4 +19996,18 @@ but we likely won't back-patch them.  This docs-only patch
 seems useful to back-patch, though I only carried it back to
 v13 because it didn't apply easily in v12.
 
-Discussion: https://postgr.es/m/18348-b097a3587dfde8a4@postgresql.org_|_
+Discussion: https://postgr.es/m/18348-b097a3587dfde8a4@postgresql.org_|_Avoid dangling-pointer problem with partitionwise joins under GEQO.
+
+build_child_join_sjinfo creates a derived SpecialJoinInfo in
+the short-lived GEQO context, but afterwards the semi_rhs_exprs
+from that may be used in a UniquePath for a child base relation.
+This breaks the expectation that all base-relation-level structures
+are in the planning-lifespan context, leading to use of a dangling
+pointer with probable ensuing crash later on in create_unique_plan.
+To fix, copy the expression trees when making a UniquePath.
+
+Per bug #18360 from Alexander Lakhin.  This has been broken since
+partitionwise joins were added, so back-patch to all supported
+branches.
+
+Discussion: https://postgr.es/m/18360-a23caf3157f34e62@postgresql.org_|_
