@@ -20010,4 +20010,23 @@ Per bug #18360 from Alexander Lakhin.  This has been broken since
 partitionwise joins were added, so back-patch to all supported
 branches.
 
-Discussion: https://postgr.es/m/18360-a23caf3157f34e62@postgresql.org_|_
+Discussion: https://postgr.es/m/18360-a23caf3157f34e62@postgresql.org_|_Promote assertion about !ReindexIsProcessingIndex to runtime error.
+
+When this assertion was installed (in commit d2f60a3ab), I thought
+it was only for catching server logic errors that caused accesses to
+catalogs that were undergoing index rebuilds.  However, it will also
+fire in case of a user-defined index expression that attempts to
+access its own table.  We occasionally see reports of people trying
+to do that, and typically getting unintelligible low-level errors
+as a result.  We can provide a more on-point message by making this
+a regular runtime check.
+
+While at it, adjust the similar error check in
+systable_beginscan_ordered to use the same message text.  That one
+is (probably) not reachable without a coding bug, but we might as
+well use a translatable message if we have one.
+
+Per bug #18363 from Alexander Lakhin.  Back-patch to all supported
+branches.
+
+Discussion: https://postgr.es/m/18363-e3598a5a572d0699@postgresql.org_|_
