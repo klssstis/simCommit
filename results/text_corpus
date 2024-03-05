@@ -20029,4 +20029,12 @@ well use a translatable message if we have one.
 Per bug #18363 from Alexander Lakhin.  Back-patch to all supported
 branches.
 
-Discussion: https://postgr.es/m/18363-e3598a5a572d0699@postgresql.org_|_
+Discussion: https://postgr.es/m/18363-e3598a5a572d0699@postgresql.org_|_Fix incorrectly reported stats kind in "can't happen" ERROR
+
+The error message(s) were reporting the stats kind of 'f', which is not
+correct as that's for the "dependencies" statistics kind.
+
+Reported-by: Horst Reiterer
+Reviewed-by: Richard Guo
+Discussion: https://postgr.es/m/18375-ba99383eb9062d6a@postgresql.org
+Backpatch-through: 12, where MCV extended stats were added._|_
