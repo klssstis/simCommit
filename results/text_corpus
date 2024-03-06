@@ -20037,4 +20037,26 @@ correct as that's for the "dependencies" statistics kind.
 Reported-by: Horst Reiterer
 Reviewed-by: Richard Guo
 Discussion: https://postgr.es/m/18375-ba99383eb9062d6a@postgresql.org
-Backpatch-through: 12, where MCV extended stats were added._|_
+Backpatch-through: 12, where MCV extended stats were added._|_Fix parallel-safety check of expressions and predicate for index builds
+
+As coded, the planner logic that calculates the number of parallel
+workers to use for a parallel index build uses expressions and
+predicates from the relcache, which are flattened for the planner by
+eval_const_expressions().
+
+As reported in the bug, an immutable parallel-unsafe function flattened
+in the relcache would become a Const, which would be considered as
+parallel-safe, even if the predicate or the expressions including the
+function are not safe in parallel workers.  Depending on the expressions
+or predicate used, this could cause the parallel build to fail.
+
+Tests are included that check parallel index builds with parallel-unsafe
+predicate and expressions.  Two routines are added to lsyscache.h to be
+able to retrieve expressions and predicate of an index from its pg_index
+data.
+
+Reported-by: Alexander Lakhin
+Author: Tender Wang
+Reviewed-by: Jian He, Michael Paquier
+Discussion: https://postgr.es/m/CAHewXN=UaAaNn9ruHDH3Os8kxLVmtWqbssnf=dZN_s9=evHUFA@mail.gmail.com
+Backpatch-through: 12_|_
