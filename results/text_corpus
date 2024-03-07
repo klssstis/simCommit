@@ -20059,4 +20059,51 @@ Reported-by: Alexander Lakhin
 Author: Tender Wang
 Reviewed-by: Jian He, Michael Paquier
 Discussion: https://postgr.es/m/CAHewXN=UaAaNn9ruHDH3Os8kxLVmtWqbssnf=dZN_s9=evHUFA@mail.gmail.com
-Backpatch-through: 12_|_
+Backpatch-through: 12_|_Revert "Fix parallel-safety check of expressions and predicate for index builds"
+
+This reverts commit eae7be600be7, following a discussion with Tom Lane,
+due to concerns that this impacts the decisions made by the planner for
+the number of workers spawned based on the inlining and const-folding of
+index expressions and predicate for cases that would have worked until
+this commit.
+
+Discussion: https://postgr.es/m/162802.1709746091@sss.pgh.pa.us
+Backpatch-through: 12_|_Fix type-checking of RECORD-returning functions in FROM.
+
+In the corner case where a function returning RECORD has been
+simplified to a RECORD constant or an inlined ROW() expression,
+ExecInitFunctionScan failed to cross-check the function's result
+rowtype against the coldeflist provided by the calling query.
+That happened because get_expr_result_type is able to extract a
+tupdesc from such expressions, which led ExecInitFunctionScan to
+ignore the coldeflist.  (Instead, it used the extracted tupdesc
+to check the function's output, which of course always succeeds.)
+
+I have not been able to demonstrate any really serious consequences
+from this, because if some column of the result is of the wrong
+type and is directly referenced by a Var of the calling query,
+CheckVarSlotCompatibility will catch it.  However, we definitely do
+fail to report the case where the function returns more columns than
+the coldeflist expects, and in the converse case where it returns
+fewer columns, we get an assert failure (but, seemingly, no worse
+results in non-assert builds).
+
+To fix, always build the expected tupdesc from the coldeflist if there
+is one, and consult get_expr_result_type only when there isn't one.
+
+Also remove the failing Assert, even though it is no longer reached
+after this fix.  It doesn't seem to be adding anything useful, since
+later checking will deal with cases with the wrong number of columns.
+
+The only other place I could find that is doing something similar
+is inline_set_returning_function.  There's no live bug there because
+we cannot be looking at a Const or RowExpr, but for consistency
+change that code to agree with ExecInitFunctionScan.
+
+Per report from PetSerAl.  After some debate I've concluded that
+this should be back-patched.  There is a small risk that somebody
+has been relying on such a case not throwing an error, but I judge
+this outweighed by the risk that I've missed some way in which the
+failure to cross-check has worse consequences than sketched above.
+
+Discussion: https://postgr.es/m/CAKygsHSerA1eXsJHR9wft3Gn3wfHQ5RfP8XHBzF70_qcrrRvEg@mail.gmail.com_|_
