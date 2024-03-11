@@ -20106,4 +20106,58 @@ has been relying on such a case not throwing an error, but I judge
 this outweighed by the risk that I've missed some way in which the
 failure to cross-check has worse consequences than sketched above.
 
-Discussion: https://postgr.es/m/CAKygsHSerA1eXsJHR9wft3Gn3wfHQ5RfP8XHBzF70_qcrrRvEg@mail.gmail.com_|_
+Discussion: https://postgr.es/m/CAKygsHSerA1eXsJHR9wft3Gn3wfHQ5RfP8XHBzF70_qcrrRvEg@mail.gmail.com_|_Fix incorrect accessing of pfree'd memory in Memoize
+
+For pass-by-reference types, the code added in 0b053e78b, which aimed to
+resolve a memory leak, was overly aggressive in resetting the per-tuple
+memory context which could result in pfree'd memory being accessed
+resulting in failing to find previously cached results in the hash
+table.
+
+What was happening was prepare_probe_slot() was switching to the
+per-tuple memory context and calling ExecEvalExpr().  ExecEvalExpr() may
+have required a memory allocation.  Both MemoizeHash_hash() and
+MemoizeHash_equal() were aggressively resetting the per-tuple context
+and after determining the hash value, the context would have gotten reset
+before MemoizeHash_equal() was called.  This could have resulted in
+MemoizeHash_equal() looking at pfree'd memory.
+
+This is less likely to have caused issues on a production build as some
+other allocation would have had to have reused the pfree'd memory to
+overwrite it.  Otherwise, the original contents would have been intact.
+However, this clearly caused issues on MEMORY_CONTEXT_CHECKING builds.
+
+Author: Tender Wang, Andrei Lepikhov
+Reported-by: Tender Wang (using SQLancer)
+Reviewed-by: Andrei Lepikhov, Richard Guo, David Rowley
+Discussion: https://postgr.es/m/CAHewXNnT6N6UJkya0z-jLFzVxcwGfeRQSfhiwA+NyLg-x8iGew@mail.gmail.com
+Backpatch-through: 14, where Memoize was added_|_Fix deparsing of Consts in postgres_fdw ORDER BY
+
+For UNION ALL queries where a union child query contained a foreign
+table, if the targetlist of that query contained a constant, and the
+top-level query performed an ORDER BY which contained the column for the
+constant value, then postgres_fdw would find the EquivalenceMember with
+the Const and then try to produce an ORDER BY containing that Const.
+
+This caused problems with INT typed Consts as these could appear to be
+requests to order by an ordinal column position rather than the constant
+value.  This could lead to either an error such as:
+
+ERROR:  ORDER BY position <int const> is not in select list
+
+or worse, if the constant value is a valid column, then we could just
+sort by the wrong column altogether.
+
+Here we fix this issue by just not including these Consts in the ORDER
+BY clause.
+
+In passing, add a new section for testing ORDER BY in the postgres_fdw
+tests and move two existing tests which were misplaced in the WHERE
+clause testing section into it.
+
+Reported-by: Michał Kłeczek
+Reviewed-by: Ashutosh Bapat, Richard Guo
+Bug: #18381
+Discussion: https://postgr.es/m/0714C8B8-8D82-4ABB-9F8D-A0C3657E7B6E%40kleczek.org
+Discussion: https://postgr.es/m/18381-137456acd168bf93%40postgresql.org
+Backpatch-through: 12, oldest supported version_|_
