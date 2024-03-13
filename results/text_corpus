@@ -20160,4 +20160,30 @@ Reviewed-by: Ashutosh Bapat, Richard Guo
 Bug: #18381
 Discussion: https://postgr.es/m/0714C8B8-8D82-4ABB-9F8D-A0C3657E7B6E%40kleczek.org
 Discussion: https://postgr.es/m/18381-137456acd168bf93%40postgresql.org
-Backpatch-through: 12, oldest supported version_|_
+Backpatch-through: 12, oldest supported version_|_Fix confusion about the return rowtype of SQL-language procedures.
+
+There is a very ancient hack in check_sql_fn_retval that allows a
+single SELECT targetlist entry of composite type to be taken as
+supplying all the output columns of a function returning composite.
+(This is grotty and fundamentally ambiguous, but it's really hard
+to do nested composite-returning functions without it.)
+
+As far as I know, that doesn't cause any problems in ordinary
+functions.  It's disastrous for procedures however.  All procedures
+that have any output parameters are labeled with prorettype RECORD,
+and the CALL code expects it will get back a record with one column
+per output parameter, regardless of whether any of those parameters
+is composite.  Doing something else leads to an assertion failure
+or core dump.
+
+This is simple enough to fix: we just need to not apply that rule
+when considering procedures.  However, that requires adding another
+argument to check_sql_fn_retval, which at least in principle might be
+getting called by external callers.  Therefore, in the back branches
+convert check_sql_fn_retval into an ABI-preserving wrapper around a
+new function check_sql_fn_retval_ext.
+
+Per report from Yahor Yuzefovich.  This has been broken since we
+implemented procedures, so back-patch to all supported branches.
+
+Discussion: https://postgr.es/m/CABz5gWHSjj2df6uG0NRiDhZ_Uz=Y8t0FJP-_SVSsRsnrQT76Gg@mail.gmail.com_|_
