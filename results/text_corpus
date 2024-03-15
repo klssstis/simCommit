@@ -20186,4 +20186,29 @@ new function check_sql_fn_retval_ext.
 Per report from Yahor Yuzefovich.  This has been broken since we
 implemented procedures, so back-patch to all supported branches.
 
-Discussion: https://postgr.es/m/CABz5gWHSjj2df6uG0NRiDhZ_Uz=Y8t0FJP-_SVSsRsnrQT76Gg@mail.gmail.com_|_
+Discussion: https://postgr.es/m/CABz5gWHSjj2df6uG0NRiDhZ_Uz=Y8t0FJP-_SVSsRsnrQT76Gg@mail.gmail.com_|_Make INSERT-from-multiple-VALUES-rows handle domain target columns.
+
+Commit a3c7a993d fixed some cases involving target columns that are
+arrays or composites by applying transformAssignedExpr to the VALUES
+entries, and then stripping off any assignment ArrayRefs or
+FieldStores that the transformation added.  But I forgot about domains
+over arrays or composites :-(.  Such cases would either fail with
+surprising complaints about mismatched datatypes, or insert unexpected
+coercions that could lead to odd results.  To fix, extend the
+stripping logic to get rid of CoerceToDomain if it's atop an ArrayRef
+or FieldStore.
+
+While poking at this, I realized that there's a poorly documented and
+not-at-all-tested behavior nearby: we coerce each VALUES column to
+the domain type separately, and rely on the rewriter to merge those
+operations so that the domain constraints are checked only once.
+If that merging did not happen, it's entirely possible that we'd get
+unexpected domain constraint failures due to checking a
+partially-updated container value.  There's no bug there, but while
+we're here let's improve the commentary about it and add some test
+cases that explicitly exercise that behavior.
+
+Per bug #18393 from Pablo Kharo.  Back-patch to all supported
+branches.
+
+Discussion: https://postgr.es/m/18393-65fedb1a0de9260d@postgresql.org_|_
