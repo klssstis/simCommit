@@ -20211,4 +20211,26 @@ cases that explicitly exercise that behavior.
 Per bug #18393 from Pablo Kharo.  Back-patch to all supported
 branches.
 
-Discussion: https://postgr.es/m/18393-65fedb1a0de9260d@postgresql.org_|_
+Discussion: https://postgr.es/m/18393-65fedb1a0de9260d@postgresql.org_|_amcheck: Normalize index tuples containing uncompressed varlena
+
+It might happen that the varlena value wasn't compressed by index_form_tuple()
+due to current storage parameters.  If compression is currently enabled, we
+need to compress such values to match index tuple coming from the heap.
+
+Backpatch to all supported versions.
+
+Discussion: https://postgr.es/m/flat/7bdbe559-d61a-4ae4-a6e1-48abdf3024cc%40postgrespro.ru
+Author: Andrey Borodin
+Reviewed-by: Alexander Lakhin, Michael Zhilin, Jian He, Alexander Korotkov
+Backpatch-through: 12_|_amcheck: Support for different header sizes of short varlena datum
+
+In the heap, tuples may contain short varlena datum with both 1B header and 4B
+headers.  But the corresponding index tuple should always have such varlena's
+with 1B headers.  So, for fingerprinting, we need to convert.
+
+Backpatch to all supported versions.
+
+Discussion: https://postgr.es/m/flat/7bdbe559-d61a-4ae4-a6e1-48abdf3024cc%40postgrespro.ru
+Author: Michael Zhilin
+Reviewed-by: Alexander Lakhin, Andrey Borodin, Jian He, Alexander Korotkov
+Backpatch-through: 12_|_
