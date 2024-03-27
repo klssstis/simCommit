@@ -20233,4 +20233,39 @@ Backpatch to all supported versions.
 Discussion: https://postgr.es/m/flat/7bdbe559-d61a-4ae4-a6e1-48abdf3024cc%40postgrespro.ru
 Author: Michael Zhilin
 Reviewed-by: Alexander Lakhin, Andrey Borodin, Jian He, Alexander Korotkov
-Backpatch-through: 12_|_
+Backpatch-through: 12_|_Fix failure of ALTER FOREIGN TABLE SET SCHEMA to move sequences.
+
+Ordinary ALTER TABLE SET SCHEMA will also move any owned sequences
+into the new schema.  We failed to do likewise for foreign tables,
+because AlterTableNamespaceInternal believed that only certain
+relkinds could have indexes, owned sequences, or constraints.
+We could simply add foreign tables to that relkind list, but it
+seems likely that the same oversight could be made again in
+future.  Instead let's remove the relkind filter altogether.
+These functions shouldn't cost much when there are no objects
+that they need to process, and surely this isn't an especially
+performance-critical case anyway.
+
+Per bug #18407 from Vidushi Gupta.  Back-patch to all supported
+branches.
+
+Discussion: https://postgr.es/m/18407-4fd07373d252c6a0@postgresql.org_|_Allow "make check"-style testing to work with musl C library.
+
+The musl dynamic linker saves a pointer to the process' environment
+value of LD_LIBRARY_PATH very early in startup.  When we move/clobber
+the environment to make more room for ps status strings, we clobber
+that value and thereby prevent libraries from being found via
+LD_LIBRARY_PATH, which breaks the use of a temporary installation
+for testing purposes.  To fix, stop collecting usable space for
+ps status if we notice that the variable we are about to clobber
+is LD_LIBRARY_PATH.  This will result in some reduction in how long
+the ps status can be, but it's only likely to occur in temporary
+test contexts, so it doesn't seem like a big problem.  In any case,
+we don't have to do it if we see we are on glibc, which surely is
+where the majority of our Linux testing is done.
+
+Thomas Munro, Bruce Momjian, and Tom Lane, per report from Wolfgang
+Walther.  Back-patch to all supported branches, with the hope that
+we'll set up a buildfarm animal to test on this platform.
+
+Discussion: https://postgr.es/m/fddd1cd6-dc16-40a2-9eb5-d7fef2101488@technowledgy.de_|_
