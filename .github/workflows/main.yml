@@ -1,8 +1,8 @@
 name: start worker
-#on: push
-on:
-  schedule:
-    - cron:  '5 12 * * *'   
+on: push
+#on:
+#  schedule:
+#    - cron:  '5 12 * * *'   
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -16,6 +16,7 @@ jobs:
           sudo apt-get install -y git python3 sudo python3-pip
           sudo pip3 install PyGithub
           sudo pip3 install requests
+          sudo pip3 install scipy==1.12          
           sudo pip3 install gensim
     - name: runs
       env:
