@@ -20268,4 +20268,37 @@ Thomas Munro, Bruce Momjian, and Tom Lane, per report from Wolfgang
 Walther.  Back-patch to all supported branches, with the hope that
 we'll set up a buildfarm animal to test on this platform.
 
-Discussion: https://postgr.es/m/fddd1cd6-dc16-40a2-9eb5-d7fef2101488@technowledgy.de_|_
+Discussion: https://postgr.es/m/fddd1cd6-dc16-40a2-9eb5-d7fef2101488@technowledgy.de_|_Fix type-checking of RECORD-returning functions in FROM, redux.
+
+Commit 2ed8f9a01 intended to institute a policy that if a
+RangeTblFunction has a coldeflist, then the function return type is
+certainly RECORD, and we should use the coldeflist as the source of
+truth about what the columns of the record type are.  When the
+original function has been folded to a constant, inspection of the
+constant might give a different answer.  This situation will lead to
+a tuple-type-mismatch error at execution, but up until that point we
+need to consistently believe the coldeflist, or we'll have problems
+from different bits of code reaching different conclusions.
+
+expandRTE didn't get that memo though, and would try to produce a
+tupdesc based on the constant in this situation, leading to an
+assertion failure.  (Desultory testing suggests that non-assert
+builds often manage to give the expected error, although I also
+saw a "cache lookup failed for type 0" error, and it seems at
+least possible that a crash could happen.)
+
+Some other callers of get_expr_result_type and get_expr_result_tupdesc
+were also being incautious about this.  While none of them seem to
+have actual bugs, they're working harder than necessary in this case,
+besides which it seems safest to have an explicit policy of not using
+those functions on an RTE with a coldeflist.  Adjust the code
+accordingly, and add commentary to funcapi.c about this policy.
+
+Also fix an obsolete comment that claimed "get_expr_result_type()
+doesn't know how to extract type info from a RECORD constant".
+That hasn't been true since commit d57534740.
+
+Per bug #18422 from Alexander Lakhin.
+As with the previous commit, back-patch to all supported branches.
+
+Discussion: https://postgr.es/m/18422-89ca86c8eac5246d@postgresql.org_|_
