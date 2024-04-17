@@ -20301,4 +20301,32 @@ That hasn't been true since commit d57534740.
 Per bug #18422 from Alexander Lakhin.
 As with the previous commit, back-patch to all supported branches.
 
-Discussion: https://postgr.es/m/18422-89ca86c8eac5246d@postgresql.org_|_
+Discussion: https://postgr.es/m/18422-89ca86c8eac5246d@postgresql.org_|_Ensure generated join clauses for child rels have correct relids.
+
+When building a join clause derived from an EquivalenceClass, if the
+clause is to be used with an appendrel child relation then make sure
+its clause_relids include the relids of that child relation.
+Normally this would be true already because the EquivalenceMember
+would be a Var of that relation.  However, if the appendrel represents
+a flattened UNION ALL construct then some child EquivalenceMembers
+could be constants with no relids.  The resulting under-marked clause
+is problematic because it could mislead join_clause_is_movable_into
+about where the clause should be evaluated.  We do not have an example
+showing incorrect plan generation, but there are existing cases in
+the regression tests that will fail the Asserts this patch adds to
+get_baserel_parampathinfo.  A similarly wrong conclusion about a
+clause being considered by get_joinrel_parampathinfo would lead to
+wrong placement of the clause.  (This also squares with the way
+that clause_relids is calculated for non-equijoin clauses in
+adjust_appendrel_attrs.)
+
+The other reason for wanting these new Asserts is that the previous
+blithe assumption that the results of generate_join_implied_equalities
+"necessarily satisfy join_clause_is_movable_into" turns out to be
+wrong pre-v16.  If it's still wrong it'd be good to find out.
+
+Per bug #18429 from Benoît Ryder.  The bug as filed was fixed by
+commit 2489d76c4, but these changes correlate with the fix we
+will need to apply in pre-v16 branches.
+
+Discussion: https://postgr.es/m/18429-8982d4a348cc86c6@postgresql.org_|_
