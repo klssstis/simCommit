@@ -20329,4 +20329,26 @@ Per bug #18429 from Benoît Ryder.  The bug as filed was fixed by
 commit 2489d76c4, but these changes correlate with the fix we
 will need to apply in pre-v16 branches.
 
-Discussion: https://postgr.es/m/18429-8982d4a348cc86c6@postgresql.org_|_
+Discussion: https://postgr.es/m/18429-8982d4a348cc86c6@postgresql.org_|_Throw a more on-point error for functions depending on columns.
+
+ALTER COLUMN TYPE wasn't expecting to find any pg_proc objects
+depending on the column whose type is to be altered.  That indeed
+wasn't possible when this code was written, but it is possible
+since we introduced new-style SQL function bodies.
+
+It's about as difficult to fix this case as it is to fix dependent
+views, and we've been punting on those for years, so I don't feel
+too awful about punting for functions too.  (I sure wouldn't risk
+back-patching such code.)  So just throw a more user-facing error.
+Also, adjust some of the existing comments to reflect that these
+are all pretty much the same issue.
+
+(This patch also fixes it so we will tolerate finding such a
+dependency during ALTER COLUMN SET EXPRESSION; in that, we need
+not do anything to the function, so no error is wanted.  That
+problem is new in HEAD.)
+
+Per bug #18449 from Alexander Lakhin.  Back-patch to v14 where
+we added new-style SQL functions.
+
+Discussion: https://postgr.es/m/18449-f8248467aaa294d5@postgresql.org_|_
