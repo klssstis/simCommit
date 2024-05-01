@@ -20351,4 +20351,17 @@ problem is new in HEAD.)
 Per bug #18449 from Alexander Lakhin.  Back-patch to v14 where
 we added new-style SQL functions.
 
-Discussion: https://postgr.es/m/18449-f8248467aaa294d5@postgresql.org_|_
+Discussion: https://postgr.es/m/18449-f8248467aaa294d5@postgresql.org_|_Ensure we allocate NAMEDATALEN bytes for names in Index Only Scans
+
+As an optimization, we store "name" columns as cstrings in btree
+indexes.
+
+Here we modify it so that Index Only Scans convert these cstrings back
+to names with NAMEDATALEN bytes rather than storing the cstring in the
+tuple slot, as was happening previously.
+
+Bug: #17855
+Reported-by: Alexander Lakhin
+Reviewed-by: Alexander Lakhin, Tom Lane
+Discussion: https://postgr.es/m/17855-5f523e0f9769a566@postgresql.org
+Backpatch-through: 12, all supported versions_|_
