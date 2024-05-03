@@ -20364,4 +20364,12 @@ Bug: #17855
 Reported-by: Alexander Lakhin
 Reviewed-by: Alexander Lakhin, Tom Lane
 Discussion: https://postgr.es/m/17855-5f523e0f9769a566@postgresql.org
-Backpatch-through: 12, all supported versions_|_
+Backpatch-through: 12, all supported versions_|_Throw a more on-point error for publications depending on columns.
+
+Same as 42b041243, except that the trouble case is a publication
+WHERE clause that depends on a column.
+
+Again reported by Alexander Lakhin.  Back-patch to v15 where
+we added publication WHERE clauses.
+
+Discussion: https://postgr.es/m/548a47bc-87ae-b3df-c6a2-60b9966f808b@gmail.com_|_
