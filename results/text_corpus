@@ -20372,4 +20372,39 @@ WHERE clause that depends on a column.
 Again reported by Alexander Lakhin.  Back-patch to v15 where
 we added publication WHERE clauses.
 
-Discussion: https://postgr.es/m/548a47bc-87ae-b3df-c6a2-60b9966f808b@gmail.com_|_
+Discussion: https://postgr.es/m/548a47bc-87ae-b3df-c6a2-60b9966f808b@gmail.com_|_Fix query pullup issue with WindowClause runCondition
+
+94985c210 added code to detect when WindowFuncs were monotonic and
+allowed additional quals to be "pushed down" into the subquery to be
+used as WindowClause runConditions in order to short-circuit execution
+in nodeWindowAgg.c.
+
+The Node representation of runConditions wasn't well selected and
+because we do qual pushdown before planning the subquery, the planning
+of the subquery could perform subquery pull-up of nested subqueries.
+For WindowFuncs with args, the arguments could be changed after pushing
+the qual down to the subquery.
+
+This was made more difficult by the fact that the code duplicated the
+WindowFunc inside an OpExpr to include in the WindowClauses runCondition
+field.  This could result in duplication of subqueries and a pull-up of
+such a subquery could result in another initplan parameter being issued
+for the 2nd version of the subplan.  This could result in errors such as:
+
+ERROR:  WindowFunc not found in subplan target lists
+
+To fix this, we change the node representation of these run conditions
+and instead of storing an OpExpr containing the WindowFunc in a list
+inside WindowClause, we now store a new node type named
+WindowFuncRunCondition within a new field in the WindowFunc.  These get
+transformed into OpExprs later in planning once subquery pull-up has been
+performed.
+
+This problem did exist in v15 and v16, but that was fixed by 9d36b883b
+and e5d20bbd.
+
+Cat version bump due to new node type and modifying WindowFunc struct.
+
+Bug: #18305
+Reported-by: Zuming Jiang
+Discussion: https://postgr.es/m/18305-33c49b4c830b37b3%40postgresql.org_|_
