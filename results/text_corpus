@@ -20407,4 +20407,27 @@ Cat version bump due to new node type and modifying WindowFunc struct.
 
 Bug: #18305
 Reported-by: Zuming Jiang
-Discussion: https://postgr.es/m/18305-33c49b4c830b37b3%40postgresql.org_|_
+Discussion: https://postgr.es/m/18305-33c49b4c830b37b3%40postgresql.org_|_Fix handling of polymorphic output arguments for procedures.
+
+Most of the infrastructure for procedure arguments was already
+okay with polymorphic output arguments, but it turns out that
+CallStmtResultDesc() was a few bricks shy of a load here.  It thought
+all it needed to do was call build_function_result_tupdesc_t, but
+that function specifically disclaims responsibility for resolving
+polymorphic arguments.  Failing to handle that doesn't seem to be
+a problem for CALL in plpgsql, but CALL from plain SQL would get
+errors like "cannot display a value of type anyelement", or even
+crash outright.
+
+In v14 and later we can simply examine the exposed types of the
+CallStmt.outargs nodes to get the right type OIDs.  But it's a lot
+more complicated to fix in v12/v13, because those versions don't
+have CallStmt.outargs, nor do they do expand_function_arguments
+until ExecuteCallStmt runs.  We have to duplicatively run
+expand_function_arguments, and then re-determine which elements
+of the args list are output arguments.
+
+Per bug #18463 from Drew Kimball.  Back-patch to all supported
+versions, since it's busted in all of them.
+
+Discussion: https://postgr.es/m/18463-f8cd77e12564d8a2@postgresql.org_|_
