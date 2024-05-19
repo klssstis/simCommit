@@ -20430,4 +20430,16 @@ of the args list are output arguments.
 Per bug #18463 from Drew Kimball.  Back-patch to all supported
 versions, since it's busted in all of them.
 
-Discussion: https://postgr.es/m/18463-f8cd77e12564d8a2@postgresql.org_|_
+Discussion: https://postgr.es/m/18463-f8cd77e12564d8a2@postgresql.org_|_Add test case showing that commit d0d44049d fixed a live bug.
+
+When I committed d0d44049d (Account for optimized MinMax aggregates
+during SS_finalize_plan), I didn't have a test case showing that it
+was fixing any reachable bug.  Here is one, based on bug #18465 from
+Hal Takahara.  Without the fix, all rows of the result show the same
+"min" value, because the aggregate doesn't get recalculated.
+
+Committed despite beta1 release freeze, with the concurrence of
+pgsql-release.
+
+Discussion: https://postgr.es/m/18465-2fae927718976b22@postgresql.org
+Discussion: https://postgr.es/m/2391880.1689025003@sss.pgh.pa.us_|_
