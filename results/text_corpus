@@ -20442,4 +20442,24 @@ Committed despite beta1 release freeze, with the concurrence of
 pgsql-release.
 
 Discussion: https://postgr.es/m/18465-2fae927718976b22@postgresql.org
-Discussion: https://postgr.es/m/2391880.1689025003@sss.pgh.pa.us_|_
+Discussion: https://postgr.es/m/2391880.1689025003@sss.pgh.pa.us_|_Doc: remove 66c0185a3 from release notes.
+
+Discussion: https://postgr.es/m/Zktzf926vslR35Fv@depesz.com
+(also some private discussion among pgsql-release)_|_Revert commit 66c0185a3 and follow-on patches.
+
+This reverts 66c0185a3 (Allow planner to use Merge Append to
+efficiently implement UNION) as well as the follow-on commits
+d5d2205c8, 3b1a7eb28, 7487044d6.  In addition to those, 07746a8ef
+had to be removed then re-applied in a different place, because
+66c0185a3 moved the relevant code.
+
+The reason for this last-minute thrashing is that depesz found a
+case in which the patched code creates a completely wrong plan
+that silently gives incorrect query results.  It's unclear what
+the cause is or how many cases are affected, but with beta1 wrap
+staring us in the face, there's no time for closer investigation.
+After we figure that out, we can decide whether to un-revert this
+for beta2 or hold it for v18.
+
+Discussion: https://postgr.es/m/Zktzf926vslR35Fv@depesz.com
+(also some private discussion among pgsql-release)_|_
