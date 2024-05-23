@@ -20462,4 +20462,46 @@ After we figure that out, we can decide whether to un-revert this
 for beta2 or hold it for v18.
 
 Discussion: https://postgr.es/m/Zktzf926vslR35Fv@depesz.com
-(also some private discussion among pgsql-release)_|_
+(also some private discussion among pgsql-release)_|_Fix input of ISO "extended" time format for types time and timetz.
+
+Commit 3e1a373e2 missed teaching DecodeTimeOnly the same "ptype"
+manipulations it added to DecodeDateTime.  While likely harmless
+at the time, it became a problem after 5b3c59535 added an error check
+that ptype must be zero once we exit the parsing loop (that is, there
+shouldn't be any unused prefixes).  The consequence was that we'd
+reject time or timetz input like T12:34:56 (the "extended" format
+per ISO 8601-1:2019), even though that still worked in timestamp
+input.
+
+Since this is clearly under-tested code, add test cases covering all
+the ISO 8601 time formats.  (Note: although 8601 allows just "Thh",
+we have never accepted that, and this patch doesn't change that.
+I'm content to leave that as-is because it seems too likely to be
+a mistake rather than intended input.  If anyone wants to allow
+that, it should be a separate patch anyway, and not back-patched.)
+
+Per bug #18470 from David Perez.  Back-patch to v16 where we
+broke it.
+
+Discussion: https://postgr.es/m/18470-34fad4c829106848@postgresql.org_|_Fix handling of extended expression statistics in CREATE TABLE LIKE.
+
+transformTableLikeClause believed that it could process extended
+statistics immediately because "the representation of CreateStatsStmt
+doesn't depend on column numbers".  That was true when extended stats
+were first introduced, but it was falsified by the addition of
+extended stats on expressions: the parsed expression tree is fed
+forward by the LIKE option, and that will contain Vars.  So if the
+new table doesn't have attnums identical to the old one's (typically
+because there are some dropped columns in the old one), that doesn't
+work.  The CREATE goes through, but it emits invalid statistics
+objects that will cause problems later.
+
+Fortunately, we already have logic that can adapt expression trees
+to the possibly-new column numbering.  To use it, we have to delay
+processing of CREATE_TABLE_LIKE_STATISTICS into expandTableLikeClause,
+just as for other LIKE options that involve expressions.
+
+Per bug #18468 from Alexander Lakhin.  Back-patch to v14 where
+extended statistics on expressions were added.
+
+Discussion: https://postgr.es/m/18468-f5add190e3fa5902@postgresql.org_|_
