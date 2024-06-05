@@ -20504,4 +20504,15 @@ just as for other LIKE options that involve expressions.
 Per bug #18468 from Alexander Lakhin.  Back-patch to v14 where
 extended statistics on expressions were added.
 
-Discussion: https://postgr.es/m/18468-f5add190e3fa5902@postgresql.org_|_
+Discussion: https://postgr.es/m/18468-f5add190e3fa5902@postgresql.org_|_doc: Fix example with database regexp in HBA documentation
+
+This HBA entry was using "local" while specifying an address, which was
+incorrect.  While in it, this adjusts the format of the entry to be
+aligned with the surroundings.
+
+Oversight in 8fea86830e1d.
+
+Reported-by: Stéphane Schildknecht
+Reviewed-by: David G. Johnston
+Discussion: https://postgr.es/m/44662001-54c4-4bfd-be93-35e01ca25fa1@gmail.com
+Backpatch-through: 16_|_
