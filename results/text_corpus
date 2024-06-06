@@ -20515,4 +20515,24 @@ Oversight in 8fea86830e1d.
 Reported-by: Stéphane Schildknecht
 Reviewed-by: David G. Johnston
 Discussion: https://postgr.es/m/44662001-54c4-4bfd-be93-35e01ca25fa1@gmail.com
-Backpatch-through: 16_|_
+Backpatch-through: 16_|_Prevent inconsistent use of stats entry for replication slots
+
+Concurrent activity around replication slot creation and drop could
+cause a replication slot to use a stats entry it should not have used
+when created, triggering an assertion failure when retrieving an
+inconsistent entry from the dshash table used by the stats facility.
+
+The issue is that pgstat_drop_replslot() calls pgstat_drop_entry()
+without checking the result.  If pgstat_drop_entry() cannot free the
+entry related to the object dropped, pgstat_request_entry_refs_gc()
+should be called.  AtEOXact_PgStat_DroppedStats() and surrounding
+routines dropping stats entries already do that.
+
+This is documented in pgstat_internal.h, but let's add a comment at the
+top of pgstat_drop_entry() as that can be easy to miss.
+
+Reported-by: Alexander Lakhin
+Author: Floris Van Nee
+Analyzed-by: Andres Freund
+Discussion: https://postgr.es/m/17947-b9554521ad963c9c@postgresql.org
+Backpatch-through: 15_|_
