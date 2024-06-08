@@ -20597,4 +20597,44 @@ an under-tested area.
 
 Per report from Andrew Bille.
 
-Discussion: https://postgr.es/m/CAJnzarw9EeWHAQRm76dXd=7j+rgw6ERqC=nCay8jeFqTwKwhqQ@mail.gmail.com_|_
+Discussion: https://postgr.es/m/CAJnzarw9EeWHAQRm76dXd=7j+rgw6ERqC=nCay8jeFqTwKwhqQ@mail.gmail.com_|_Tighten test_predtest's input checks, and improve error messages.
+
+test_predtest() neglected to consider the possibility that
+SPI_plan_get_cached_plan would return NULL.  This led to a core
+dump if the input (incorrectly) contains more than one SQL
+command.
+
+While here, let's expend more than zero effort on the error
+message for this case and nearby ones.
+
+Per (half of) bug #18483 from Alexander Kozhemyakin.
+Back-patch to all supported branches, not because this is
+very significant (it's merely test scaffolding) but to make
+our world a bit safer for fuzz testing.
+
+Discussion: https://postgr.es/m/18483-30bfff42de238000@postgresql.org_|_Reject modifying a temp table of another session with ALTER TABLE.
+
+Normally this case isn't even reachable by non-superusers, since
+permissions checks prevent naming such a table.  However, it is
+possible to make it happen by altering a parent table whose child
+is another session's temp table.
+
+We definitely can't support any such ALTER that requires modifying
+the contents of such a table, since we lack access to the other
+session's temporary-buffer pool.  But there seems no good reason
+to allow it even if it'd only require changing catalog contents.
+One reason not to allow it is that we'd rather not expose the
+implementation-dependent behavior of whether a specific ALTER
+requires touching the table contents.  Another is that there may
+be (in future, even if not today) optimizations that assume that
+a session's own temp tables won't be modified by other sessions.
+
+Hence, add a RELATION_IS_OTHER_TEMP() check to all the places
+where ALTER TABLE currently does CheckTableNotInUse().  (I looked
+through all other callers of CheckTableNotInUse(), and they seem
+OK already.)
+
+Per bug #18492 from Alexander Lakhin.  Back-patch to all supported
+branches.
+
+Discussion: https://postgr.es/m/18492-c7a2634bf4968763@postgresql.org_|_
