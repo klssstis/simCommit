@@ -20637,4 +20637,22 @@ OK already.)
 Per bug #18492 from Alexander Lakhin.  Back-patch to all supported
 branches.
 
-Discussion: https://postgr.es/m/18492-c7a2634bf4968763@postgresql.org_|_
+Discussion: https://postgr.es/m/18492-c7a2634bf4968763@postgresql.org_|_Fix creation of partition descriptor during concurrent detach
+
+When a partition is being detached in concurrent mode, it is possible
+for find_inheritance_children_extended() to return that partition in the
+list, and immediately after that receive an invalidation message that
+sets its relpartbound to NULL just before we read it.  (This can happen
+because table_open() reads invalidation messages.)  Currently we raise
+an error
+  ERROR:  missing relpartbound for relation %u
+about the situation, but that's bogus because the table is no longer a
+partition, so we shouldn't be complaining about it.  A better reaction
+is to retry the find_inheritance_children_extended call to get a new
+list, which will no longer have the partition being detached.
+
+Noticed while investigating bug #18377.
+
+Backpatch to 14, where DETACH CONCURRENTLY appeared.
+
+Discussion: https://postgr.es/m/202405201616.y4ht2qe5ihoy@alvherre.pgsql_|_
