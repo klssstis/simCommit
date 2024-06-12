@@ -20655,4 +20655,33 @@ Noticed while investigating bug #18377.
 
 Backpatch to 14, where DETACH CONCURRENTLY appeared.
 
-Discussion: https://postgr.es/m/202405201616.y4ht2qe5ihoy@alvherre.pgsql_|_
+Discussion: https://postgr.es/m/202405201616.y4ht2qe5ihoy@alvherre.pgsql_|_Fix segmentation fault in test_tidstore.
+
+The do_set_block_offsets() and other functions accessing the tidstore
+did not check if the tidstore was NULL. This led to a segmentation
+fault when these functions are called without calling the
+test_create().
+
+This commit adds NULL checks in relevant functions of test_tidstore to
+raise an error instead if the tidstore is not initialized.
+
+Bug: #18483
+Reported-by: Alexander Kozhemyakin
+Reviewed-by: Michael Paquier
+Discussion: https://postgr.es/m/18483-30bfff42de238000%40postgresql.org_|_Fix infer_arbiter_indexes() to not assume resultRelation is 1.
+
+infer_arbiter_indexes failed to renumber varnos in index expressions
+or predicates that it got from the catalogs.  This escaped detection
+up to now because the stored varnos in such trees will be 1, and an
+INSERT's result relation is usually the first rangetable entry,
+so that that was fine.  However, in cases such as inserting through
+an updatable view, it's not fine, leading to failure to match the
+expressions to the query with ensuing "there is no unique or exclusion
+constraint matching the ON CONFLICT specification" errors.
+
+Fix by copy-and-paste from get_relation_info().
+
+Per bug #18502 from Michael Wang.  Back-patch to all supported
+versions.
+
+Discussion: https://postgr.es/m/18502-545b53f5b81e54e0@postgresql.org_|_
