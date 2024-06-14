@@ -20684,4 +20684,57 @@ Fix by copy-and-paste from get_relation_info().
 Per bug #18502 from Michael Wang.  Back-patch to all supported
 versions.
 
-Discussion: https://postgr.es/m/18502-545b53f5b81e54e0@postgresql.org_|_
+Discussion: https://postgr.es/m/18502-545b53f5b81e54e0@postgresql.org_|_Fix parsing of ignored operators in websearch_to_tsquery().
+
+The manual says clearly that punctuation in the input of
+websearch_to_tsquery() is ignored, except for the special cases
+of dashes and quotes.  However, this failed for cases like
+"(foo bar) or something", or in general an ISOPERATOR character
+in front of the "or".  We'd switch back to WAITOPERAND state,
+then ignore the operator character while remaining in that state,
+and then reach the "or" in WAITOPERAND state which (intentionally)
+makes us treat it as data.
+
+The fix is simple enough: if we see an ISOPERATOR character while in
+WAITOPERATOR state, we have to skip it while staying in that state.
+(We don't need to worry about other punctuation characters: those will
+be consumed as though they were words, but then rejected by lexizing.)
+
+In v14 and up (since commit eb086056f) we can simplify the code a bit
+more too, because there is no longer a reason for the WAITOPERAND
+state to distinguish between quoted and unquoted operands.
+
+Per bug #18479 from Manos Emmanouilidis.  Back-patch to all supported
+branches.
+
+Discussion: https://postgr.es/m/18479-d9b46e2fc242c33e@postgresql.org_|_When replanning a plpgsql "simple expression", check it's still simple.
+
+The previous coding here assumed that we didn't need to recheck any
+of the querytree tests made in exec_simple_check_plan().  I think
+we supposed that those properties were fully determined by the
+syntax of the source text and hence couldn't change.  That is true
+for most of them, but at least hasTargetSRFs and hasAggs can change
+by dint of forcibly dropping an originally-referenced function and
+recreating it with new properties.  That leads to "unexpected plan
+node type" or similar failures.
+
+These tests are pretty cheap compared to the cost of replanning, so
+rather than sweat over exactly which properties need to be rechecked,
+let's just recheck them all.  Hence, factor out those tests into a new
+function exec_is_simple_query(), and rearrange callers as needed.
+
+A second problem in the same area was that if we failed during
+replanning or during exec_save_simple_expr(), we'd potentially
+leave behind now-dangling pointers to the old simple expression,
+potentially resulting in crashes later.  To fix, clear those pointers
+before replanning.
+
+The v12 code looks quite different in this area but still has the
+bug about needing to recheck query simplicity.  I chose to back-patch
+all of the plpgsql_simple.sql test script, which formerly didn't exist
+in this branch.
+
+Per bug #18497 from Nikita Kalinin.  Back-patch to all supported
+branches.
+
+Discussion: https://postgr.es/m/18497-fe93b6da82ce31d4@postgresql.org_|_
