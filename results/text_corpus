@@ -20737,4 +20737,13 @@ in this branch.
 Per bug #18497 from Nikita Kalinin.  Back-patch to all supported
 branches.
 
-Discussion: https://postgr.es/m/18497-fe93b6da82ce31d4@postgresql.org_|_
+Discussion: https://postgr.es/m/18497-fe93b6da82ce31d4@postgresql.org_|_Make regress function make_tuple_indirect() able to handle plain attributes
+
+The function has been introduced in 368202501539 to test at a low level
+the new kinds of external toast datums, and would fail on OOM when
+dealing with a plain storage attribute.  The existing tests of
+indirect_toast do not test this case, still the error generated was
+confusing.
+
+Author: Alexander Lakhin
+Discussion: https://postgr.es/m/250a21e5-d677-6b2a-2692-cd4233785e37@gmail.com_|_
