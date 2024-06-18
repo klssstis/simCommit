@@ -20746,4 +20746,46 @@ indirect_toast do not test this case, still the error generated was
 confusing.
 
 Author: Alexander Lakhin
-Discussion: https://postgr.es/m/250a21e5-d677-6b2a-2692-cd4233785e37@gmail.com_|_
+Discussion: https://postgr.es/m/250a21e5-d677-6b2a-2692-cd4233785e37@gmail.com_|_Fix insertion of SP-GiST REDIRECT tuples during REINDEX CONCURRENTLY.
+
+Reconstruction of an SP-GiST index by REINDEX CONCURRENTLY may
+insert some REDIRECT tuples.  This will typically happen in
+a transaction that lacks an XID, which leads either to assertion
+failure in spgFormDeadTuple or to insertion of a REDIRECT tuple
+with zero xid.  The latter's not good either, since eventually
+VACUUM will apply GlobalVisTestIsRemovableXid() to the zero xid,
+resulting in either an assertion failure or a garbage answer.
+
+In practice, since REINDEX CONCURRENTLY locks out index scans
+till it's done, it doesn't matter whether it inserts REDIRECTs
+or PLACEHOLDERs; and likewise it doesn't matter how soon VACUUM
+reduces such a REDIRECT to a PLACEHOLDER.  So in non-assert builds
+there's no observable problem here, other than perhaps a little
+index bloat.  But it's not behaving as intended.
+
+To fix, remove the failing Assert in spgFormDeadTuple, acknowledging
+that we might sometimes insert a zero XID; and guard VACUUM's
+GlobalVisTestIsRemovableXid() call with a test for valid XID,
+ensuring that we'll reduce such a REDIRECT the first time VACUUM
+sees it.  (Versions before v14 use TransactionIdPrecedes here,
+which won't fail on zero xid, so they really have no bug at all
+in non-assert builds.)
+
+Another solution could be to not create REDIRECTs at all during
+REINDEX CONCURRENTLY, making the relevant code paths treat that
+case like index build (which likewise knows that no concurrent
+index scans can be happening).  That would allow restoring the
+Assert in spgFormDeadTuple, but we'd still need the VACUUM change
+because redirection tuples with zero xid may be out there already.
+But there doesn't seem to be a nice way for spginsert() to tell that
+it's being called in REINDEX CONCURRENTLY without some API changes,
+so we'll leave that as a possible future improvement.
+
+In HEAD, also rename the SpGistState.myXid field to redirectXid,
+which seems less misleading (since it might not in fact be our
+transaction's XID) and is certainly less uninformatively generic.
+
+Per bug #18499 from Alexander Lakhin.  Back-patch to all supported
+branches.
+
+Discussion: https://postgr.es/m/18499-8a519c280f956480@postgresql.org_|_
