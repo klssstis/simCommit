@@ -20850,4 +20850,42 @@ Backpatch to 14, where DETACH CONCURRENTLY appeared.
 
 Reported-by: yajun Hu <1026592243@qq.com>
 Reviewed-by: Tender Wang <tndrwang@gmail.com>
+Discussion: https://postgr.es/m/18377-e0324601cfebdfe5@postgresql.org_|_Fix partition pruning setup during DETACH CONCURRENTLY
+
+When detaching partition in concurrent mode, it's possible for partition
+descriptors to not match the set that was recently seen when the plan
+was made, causing an assertion failure or (in production builds) failure
+to construct a working plan.  The case that was reported involves
+prepared statements, but I think it may be possible to hit this bug
+without that too.
+
+The problem is that CreatePartitionPruneState is constructing a
+PartitionPruneState under the assumption that new partitions can be
+added, but never removed, but it turns out that this isn't true: a
+prepared statement gets replanned when the DETACH CONCURRENTLY session
+sends out its invalidation message, but if the invalidation message
+arrives after ExecInitAppend started, we would build a partition
+descriptor without the partition, and then CreatePartitionPruneState
+would refuse to work with it.
+
+CreatePartitionPruneState already contains code to deal with the new
+descriptor having more partitions than before (and behaving for the
+extra partitions as if they had been pruned), but doesn't have code to
+deal with less partitions than before, and it is naïve about the case
+where the number of partitions is the same.  We could simply add that a
+new stanza for less partitions than before, and in simple testing it
+works to do that; but it's possible to press the test scripts even
+further and hit the case where one partition is added and a partition is
+removed quickly enough that we see the same number of partitions, but
+they don't actually match, causing hangs during execution.
+
+To cope with both these problems, we now memcmp() the arrays of
+partition OIDs, and do a more elaborate mapping (relying on the fact
+that both OID arrays are in partition-bounds order) if they're not
+identical.
+
+This fix was already pushed in backbranches earlier.
+
+Reported-by: yajun Hu <1026592243@qq.com>
+Reviewed-by: Tender Wang <tndrwang@gmail.com>
 Discussion: https://postgr.es/m/18377-e0324601cfebdfe5@postgresql.org_|_
