@@ -20888,4 +20888,15 @@ This fix was already pushed in backbranches earlier.
 
 Reported-by: yajun Hu <1026592243@qq.com>
 Reviewed-by: Tender Wang <tndrwang@gmail.com>
-Discussion: https://postgr.es/m/18377-e0324601cfebdfe5@postgresql.org_|_
+Discussion: https://postgr.es/m/18377-e0324601cfebdfe5@postgresql.org_|_Drop the temporary tuple slots allocated by pgoutput.
+
+In pgoutput, when converting the child table's tuple format to match the
+parent table's, we temporarily create a new slot to store the converted
+tuple. However, we missed to drop such temporary slots, leading to
+resource leakage.
+
+Reported-by: Bowen Shi
+Author: Hou Zhijie
+Reviewed-by: Amit Kapila
+Backpatch-through: 15
+Discussion: https://postgr.es/m/CAM_vCudv8dc3sjWiPkXx5F2b27UV7_YRKRbtSCcE-pv=cVACGA@mail.gmail.com_|_
