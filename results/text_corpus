@@ -20899,4 +20899,16 @@ Reported-by: Bowen Shi
 Author: Hou Zhijie
 Reviewed-by: Amit Kapila
 Backpatch-through: 15
-Discussion: https://postgr.es/m/CAM_vCudv8dc3sjWiPkXx5F2b27UV7_YRKRbtSCcE-pv=cVACGA@mail.gmail.com_|_
+Discussion: https://postgr.es/m/CAM_vCudv8dc3sjWiPkXx5F2b27UV7_YRKRbtSCcE-pv=cVACGA@mail.gmail.com_|_Improve enlargeStringInfo's ERROR message
+
+Until now, when an enlargeStringInfo() call would cause the StringInfo to
+exceed its maximum size, we reported an "out of memory" error.  This is
+misleading as it's no such thing.
+
+Here we remove the "out of memory" text and replace it with something
+more relevant to better indicate that it's a program limitation that's
+been reached.
+
+Reported-by: Michael Banck
+Reviewed-by: Daniel Gustafsson, Tom Lane
+Discussion: https://postgr.es/m/18484-3e357ade5fe50e61@postgresql.org_|_
