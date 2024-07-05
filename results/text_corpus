@@ -20911,4 +20911,34 @@ been reached.
 
 Reported-by: Michael Banck
 Reviewed-by: Daniel Gustafsson, Tom Lane
-Discussion: https://postgr.es/m/18484-3e357ade5fe50e61@postgresql.org_|_
+Discussion: https://postgr.es/m/18484-3e357ade5fe50e61@postgresql.org_|_Add simple codepoint redirections to unaccent.rules.
+
+Previously we searched for code points where the Unicode data file
+listed an equivalent combining character sequence that added accents.
+Some codepoints redirect to a single other codepoint, instead of doing
+any combining.  We can follow those references recursively to get the
+answer.
+
+Per bug report #18362, which reported missing Ancient Greek characters.
+Specifically, precomposed characters with oxia (from the polytonic
+accent system used for old Greek) just point to precomposed characters
+with tonos (from the monotonic accent system for modern Greek), and we
+have to follow the extra hop to find out that they are composed with
+an acute accent.
+
+Besides those, the new rule also:
+
+* pulls in a lot of 'Mathematical Alphanumeric Symbols', which are
+  copies of the Latin and Greek alphabets and numbers rendered
+  in different typefaces, and
+
+* corrects a single mathematical letter that previously came from the
+  CLDR transliteration file, but the new rule extracts from the main
+  Unicode database file, where clearly the latter is right and the
+  former is a wrong (reported to CLDR).
+
+Reported-by: Cees van Zeeland <cees.van.zeeland@freedom.nl>
+Reviewed-by: Robert Haas <robertmhaas@gmail.com>
+Reviewed-by: Peter Eisentraut <peter@eisentraut.org>
+Reviewed-by: Michael Paquier <michael@paquier.xyz>
+Discussion: https://postgr.es/m/18362-be6d0cfe122b6354%40postgresql.org_|_
