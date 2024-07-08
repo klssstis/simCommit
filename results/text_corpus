@@ -20941,4 +20941,29 @@ Reported-by: Cees van Zeeland <cees.van.zeeland@freedom.nl>
 Reviewed-by: Robert Haas <robertmhaas@gmail.com>
 Reviewed-by: Peter Eisentraut <peter@eisentraut.org>
 Reviewed-by: Michael Paquier <michael@paquier.xyz>
-Discussion: https://postgr.es/m/18362-be6d0cfe122b6354%40postgresql.org_|_
+Discussion: https://postgr.es/m/18362-be6d0cfe122b6354%40postgresql.org_|_Fix right-anti-joins when the inner relation is proven unique
+
+For an inner_unique join, we always assume that the executor will stop
+scanning for matches after the first match.  Therefore, for a mergejoin
+that is inner_unique and whose mergeclauses are sufficient to identify a
+match, we set the skip_mark_restore flag to true, indicating that the
+executor need not do mark/restore calls.  However, merge-right-anti-join
+did not get this memo and continues scanning the inner side for matches
+after the first match.  If there are duplicates in the outer scan, we
+may incorrectly skip matching some inner tuples, which can lead to wrong
+results.
+
+Here we fix this issue by ensuring that merge-right-anti-join also
+advances to next outer tuple after the first match in inner_unique
+cases.  This also saves cycles by avoiding unnecessary scanning of inner
+tuples after the first match.
+
+Although hash-right-anti-join does not suffer from this wrong results
+issue, we apply the same change to it as well, to help save cycles for
+the same reason.
+
+Per bug #18522 from Antti Lampinen, and bug #18526 from Feliphe Pozzer.
+Back-patch to v16 where right-anti-join was introduced.
+
+Author: Richard Guo
+Discussion: https://postgr.es/m/18522-c7a8956126afdfd0@postgresql.org_|_
