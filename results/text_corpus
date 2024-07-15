@@ -21035,4 +21035,18 @@ Backpatch to all supported versions.
 Reported-by: Drew Callahan
 Reviewed-by: Amit Kapila, Hayato Kuroda
 Discussion: https://postgr.es/m/2444AA15-D21B-4CCE-8052-52C7C2DAFE5C%40amazon.com
-Backpatch-through: 12_|_
+Backpatch-through: 12_|_Avoid unhelpful internal error for incorrect recursive-WITH queries.
+
+checkWellFormedRecursion would issue "missing recursive reference"
+if a WITH RECURSIVE query contained a single self-reference but
+that self-reference was inside a top-level WITH, ORDER BY, LIMIT,
+etc, rather than inside the second arm of the UNION as expected.
+We already intended to throw more-on-point errors for such cases,
+but those error checks must be done before examining the UNION arm
+in order to have the desired results.  So this patch need only
+move some code (and improve the comments).
+
+Per bug #18536 from Alexander Lakhin.  Back-patch to all supported
+branches.
+
+Discussion: https://postgr.es/m/18536-0a342ec07901203e@postgresql.org_|_
