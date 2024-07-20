@@ -21093,4 +21093,17 @@ Back-patch to v15 where that commit enforced the prohibition.
 Reviewed by Tom Lane.
 
 Discussion: https://postgr.es/m/17889-e8c39a251d258dda%40postgresql.org
-Discussion: https://postgr.es/m/b415ac3255f8352d1ea921cf3b7ba39e0587768a.camel%40gunduz.org_|_
+Discussion: https://postgr.es/m/b415ac3255f8352d1ea921cf3b7ba39e0587768a.camel%40gunduz.org_|_Add overflow checks to money type.
+
+None of the arithmetic functions for the the money type handle
+overflow.  This commit introduces several helper functions with
+overflow checking and makes use of them in the money type's
+arithmetic functions.
+
+Fixes bug #18240.
+
+Reported-by: Alexander Lakhin
+Author: Joseph Koshakow
+Discussion: https://postgr.es/m/18240-c5da758d7dc1ecf0%40postgresql.org
+Discussion: https://postgr.es/m/CAAvxfHdBPOyEGS7s%2Bxf4iaW0-cgiq25jpYdWBqQqvLtLe_t6tw%40mail.gmail.com
+Backpatch-through: 12_|_
