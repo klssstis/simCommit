@@ -21106,4 +21106,17 @@ Reported-by: Alexander Lakhin
 Author: Joseph Koshakow
 Discussion: https://postgr.es/m/18240-c5da758d7dc1ecf0%40postgresql.org
 Discussion: https://postgr.es/m/CAAvxfHdBPOyEGS7s%2Bxf4iaW0-cgiq25jpYdWBqQqvLtLe_t6tw%40mail.gmail.com
-Backpatch-through: 12_|_
+Backpatch-through: 12_|_Correctly check updatability of columns targeted by INSERT...DEFAULT.
+
+If a view has some updatable and some non-updatable columns, we failed
+to verify updatability of any columns for which an INSERT or UPDATE
+on the view explicitly specifies a DEFAULT item (unless the view has
+a declared default for that column, which is rare anyway, and one
+would almost certainly not write one for a non-updatable column).
+This would lead to an unexpected "attribute number N not found in
+view targetlist" error rather than the intended error.
+
+Per bug #18546 from Alexander Lakhin.  This bug is old, so back-patch
+to all supported branches.
+
+Discussion: https://postgr.es/m/18546-84a292e759a9361d@postgresql.org_|_
