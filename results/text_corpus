@@ -21119,4 +21119,19 @@ view targetlist" error rather than the intended error.
 Per bug #18546 from Alexander Lakhin.  This bug is old, so back-patch
 to all supported branches.
 
-Discussion: https://postgr.es/m/18546-84a292e759a9361d@postgresql.org_|_
+Discussion: https://postgr.es/m/18546-84a292e759a9361d@postgresql.org_|_Reset relhassubclass upon attaching table as a partition
+
+We don't allow inheritance parents as partitions, and have checks to
+prevent this; but if a table _was_ in the past an inheritance parents
+and all their children are removed, the pg_class.relhassubclass flag
+may remain set, which confuses the partition pruning code (most
+obviously, it results in an assertion failure; in production builds it
+may be worse.)
+
+Fix by resetting relhassubclass on attach.
+
+Backpatch to all supported versions.
+
+Reported-by: Alexander Lakhin <exclusion@gmail.com>
+Reviewed-by: Tom Lane <tgl@sss.pgh.pa.us>
+Discussion: https://postgr.es/m/18550-d5e047e9a897a889@postgresql.org_|_
