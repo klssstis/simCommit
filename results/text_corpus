@@ -21134,4 +21134,26 @@ Backpatch to all supported versions.
 
 Reported-by: Alexander Lakhin <exclusion@gmail.com>
 Reviewed-by: Tom Lane <tgl@sss.pgh.pa.us>
-Discussion: https://postgr.es/m/18550-d5e047e9a897a889@postgresql.org_|_
+Discussion: https://postgr.es/m/18550-d5e047e9a897a889@postgresql.org_|_Allow parallel workers to cope with a newly-created session user ID.
+
+Parallel workers failed after a sequence like
+	BEGIN;
+	CREATE USER foo;
+	SET SESSION AUTHORIZATION foo;
+because check_session_authorization could not see the uncommitted
+pg_authid row for "foo".  This is because we ran RestoreGUCState()
+in a separate transaction using an ordinary just-created snapshot.
+The same disease afflicts any other GUC that requires catalog lookups
+and isn't forgiving about the lookups failing.
+
+To fix, postpone RestoreGUCState() into the worker's main transaction
+after we've set up a snapshot duplicating the leader's.  This affects
+check_transaction_isolation and check_transaction_deferrable, which
+think they should only run during transaction start.  Make them
+act like check_transaction_read_only, which already knows it should
+silently accept the value when InitializingParallelWorker.
+
+Per bug #18545 from Andrey Rachitskiy.  Back-patch to all
+supported branches, because this has been wrong for awhile.
+
+Discussion: https://postgr.es/m/18545-feba138862f19aaa@postgresql.org_|_
