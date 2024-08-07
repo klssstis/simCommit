@@ -21156,4 +21156,52 @@ silently accept the value when InitializingParallelWorker.
 Per bug #18545 from Andrey Rachitskiy.  Back-patch to all
 supported branches, because this has been wrong for awhile.
 
+Discussion: https://postgr.es/m/18545-feba138862f19aaa@postgresql.org_|_Allow parallel workers to cope with a newly-created session user ID.
+
+Parallel workers failed after a sequence like
+BEGIN;
+CREATE USER foo;
+SET SESSION AUTHORIZATION foo;
+because check_session_authorization could not see the uncommitted
+pg_authid row for "foo".  This is because we ran RestoreGUCState()
+in a separate transaction using an ordinary just-created snapshot.
+The same disease afflicts any other GUC that requires catalog lookups
+and isn't forgiving about the lookups failing.
+
+To fix, postpone RestoreGUCState() into the worker's main transaction
+after we've set up a snapshot duplicating the leader's.  This affects
+check_transaction_isolation and check_transaction_deferrable, which
+think they should only run during transaction start.  Make them
+act like check_transaction_read_only, which already knows it should
+silently accept the value when InitializingParallelWorker.
+
+This un-reverts commit f5f30c22e.  The original plan was to back-patch
+that, but the fact that 0ae5b763e proved to be a pre-requisite shows
+that the subtle API change for GUC hooks might actually break some of
+them.  The problem we're trying to fix seems not worth taking such a
+risk for in stable branches.
+
+Per bug #18545 from Andrey Rachitskiy.
+
+Discussion: https://postgr.es/m/18545-feba138862f19aaa@postgresql.org_|_Clean up handling of client_encoding GUC in parallel workers.
+
+The previous coding here threw an error from assign_client_encoding
+if it was invoked in a parallel worker.  That's a very fundamental
+violation of the GUC hook API: assign hooks must not throw errors.
+The place to complain is in the check hook, so move the test to
+there, and use the regular check-hook API (ie return false) to
+report it.
+
+The reason this coding is a problem is that it breaks GUC rollback,
+which may occur after we leave InitializingParallelWorker state.
+That case seems not actually reachable before now, but commit
+f5f30c22e made it reachable, so we need to fix this before that
+can be un-reverted.
+
+In passing, improve the commentary in ParallelWorkerMain, and
+add a check for failure of SetClientEncoding.  That's another
+case that can't happen now but might become possible after
+foreseeable code rearrangements (notably, if the shortcut of
+skipping PrepareClientEncoding stops being OK).
+
 Discussion: https://postgr.es/m/18545-feba138862f19aaa@postgresql.org_|_
