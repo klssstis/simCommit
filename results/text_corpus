@@ -21204,4 +21204,41 @@ case that can't happen now but might become possible after
 foreseeable code rearrangements (notably, if the shortcut of
 skipping PrepareClientEncoding stops being OK).
 
-Discussion: https://postgr.es/m/18545-feba138862f19aaa@postgresql.org_|_
+Discussion: https://postgr.es/m/18545-feba138862f19aaa@postgresql.org_|_Fix pg_rewind debug output to print the source timeline history
+
+getTimelineHistory() is called twice, to read the source and the
+target timeline history files. However, the loop to print the file
+with the --debug option used the wrong variable when dealing with the
+source. As a result, the source's history was always printed as empty.
+
+Spotted while debugging bug #18575, but this does not fix that bug,
+just the debugging output. Backpatch to all supported versions.
+
+Discussion: https://www.postgresql.org/message-id/092dd515-b7b4-4fd0-8407-ceca2f02f6ec@iki.fi_|_Fix edge case in plpgsql's make_callstmt_target().
+
+If the plancache entry for the CALL statement is already stale,
+it's possible for us to fetch an old procedure OID out of it,
+and then fail with "cache lookup failed for function NNN".
+In ordinary usage this never happens because make_callstmt_target
+is called just once immediately after building the plancache
+entry.  It can be forced however by setting up an erroneous CALL
+(that causes make_callstmt_target itself to report an error),
+then dropping/recreating the target procedure, then repeating
+the erroneous CALL.
+
+To fix, use SPI_plan_get_cached_plan() to fetch the plancache's
+plan, rather than assuming we can use SPI_plan_get_plan_sources().
+This shouldn't add any noticeable overhead in the normal case,
+and in the stale-plan case we'd have had to replan anyway a little
+further down.
+
+The other callers of SPI_plan_get_plan_sources() seem OK, because
+either they don't need up-to-date plans or they know that the
+query was just (re) planned.  But add some commentary in hopes
+of not falling into this trap again.
+
+Per bug #18574 from Song Hongyu.  Back-patch to v14 where this coding
+was introduced.  (Older branches have comparable code, but it's run
+after any required replanning, so there's no issue.)
+
+Discussion: https://postgr.es/m/18574-2ce7ba3249221389@postgresql.org_|_
