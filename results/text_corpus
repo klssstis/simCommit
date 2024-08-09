@@ -21241,4 +21241,23 @@ Per bug #18574 from Song Hongyu.  Back-patch to v14 where this coding
 was introduced.  (Older branches have comparable code, but it's run
 after any required replanning, so there's no issue.)
 
-Discussion: https://postgr.es/m/18574-2ce7ba3249221389@postgresql.org_|_
+Discussion: https://postgr.es/m/18574-2ce7ba3249221389@postgresql.org_|_Refuse ATTACH of a table referenced by a foreign key
+
+Trying to attach a table as a partition which is already on the
+referenced side of a foreign key on the partitioned table that it is
+being attached to, leads to strange behavior: we try to clone the
+foreign key from the parent to the partition, but this new FK points to
+the partition itself, and the mix of pg_constraint rows and triggers
+doesn't behave well.
+
+Rather than trying to untangle the mess (which might be possible given
+sufficient time), I opted to forbid the ATTACH.  This doesn't seem a
+problematic restriction, given that we already fail to create the
+foreign key if you do it the other way around, that is, having the
+partition first and the FK second.
+
+Backpatch to all supported branches.
+
+Reported-by: Alexander Lakhin <exclusion@gmail.com>
+Reviewed-by: Tender Wang <tndrwang@gmail.com>
+Discussion: https://postgr.es/m/18541-628a61bc267cd2d3@postgresql.org_|_
