@@ -21260,4 +21260,24 @@ Backpatch to all supported branches.
 
 Reported-by: Alexander Lakhin <exclusion@gmail.com>
 Reviewed-by: Tender Wang <tndrwang@gmail.com>
-Discussion: https://postgr.es/m/18541-628a61bc267cd2d3@postgresql.org_|_
+Discussion: https://postgr.es/m/18541-628a61bc267cd2d3@postgresql.org_|_Fix "failed to find plan for subquery/CTE" errors in EXPLAIN.
+
+To deparse a reference to a field of a RECORD-type output of a
+subquery, EXPLAIN normally digs down into the subquery's plan to try
+to discover exactly which anonymous RECORD type is meant.  However,
+this can fail if the subquery has been optimized out of the plan
+altogether on the grounds that no rows could pass the WHERE quals,
+which has been possible at least since 3fc6e2d7f.  There isn't
+anything remaining in the plan tree that would help us, so fall back
+to printing the field name as "fN" for the N'th column of the record.
+(This will actually be the right thing some of the time, since it
+matches the column names we assign to RowExprs.)
+
+In passing, fix a comment typo in create_projection_plan, which
+I noticed while experimenting with an alternative fix for this.
+
+Per bug #18576 from Vasya B.  Back-patch to all supported branches.
+
+Richard Guo and Tom Lane
+
+Discussion: https://postgr.es/m/18576-9feac34e132fea9e@postgresql.org_|_
