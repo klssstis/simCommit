@@ -21280,4 +21280,30 @@ Per bug #18576 from Vasya B.  Back-patch to all supported branches.
 
 Richard Guo and Tom Lane
 
-Discussion: https://postgr.es/m/18576-9feac34e132fea9e@postgresql.org_|_
+Discussion: https://postgr.es/m/18576-9feac34e132fea9e@postgresql.org_|_Fix creation of partition descriptor during concurrent detach+drop
+
+If a partition undergoes DETACH CONCURRENTLY immediately followed by
+DROP, this could cause a problem for a concurrent transaction
+recomputing the partition descriptor when running a prepared statement,
+because it tries to dereference a pointer to a tuple that's not found in
+a catalog scan.
+
+The existing retry logic added in commit dbca3469ebf8 is sufficient to
+cope with the overall problem, provided we don't try to dereference a
+non-existant heap tuple.
+
+Arguably, the code in RelationBuildPartitionDesc() has been wrong all
+along, since no check was added in commit 898e5e3290a7 against receiving
+a NULL tuple from the catalog scan; that bug has only become
+user-visible with DETACH CONCURRENTLY which was added in branch 14.
+Therefore, even though there's no known mechanism to cause a crash
+because of this, backpatch the addition of such a check to all supported
+branches.  In branches prior to 14, this would cause the code to fail
+with a "missing relpartbound for relation XYZ" error instead of
+crashing; that's okay, because there are no reports of such behavior
+anyway.
+
+Author: Kuntal Ghosh <kuntalghosh.2007@gmail.com>
+Reviewed-by: Junwang Zhao <zhjwpku@gmail.com>
+Reviewed-by: Tender Wang <tndrwang@gmail.com>
+Discussion: https://postgr.es/m/18559-b48286d2eacd9a4e@postgresql.org_|_
