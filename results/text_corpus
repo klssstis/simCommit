@@ -21306,4 +21306,27 @@ anyway.
 Author: Kuntal Ghosh <kuntalghosh.2007@gmail.com>
 Reviewed-by: Junwang Zhao <zhjwpku@gmail.com>
 Reviewed-by: Tender Wang <tndrwang@gmail.com>
-Discussion: https://postgr.es/m/18559-b48286d2eacd9a4e@postgresql.org_|_
+Discussion: https://postgr.es/m/18559-b48286d2eacd9a4e@postgresql.org_|_Improve ALTER PUBLICATION validation and error messages
+
+Attempting to add a system column for a table to an existing publication
+would result in the not very intuitive error message of:
+
+ERROR:  negative bitmapset member not allowed
+
+Here we improve that to have it display the same error message as a user
+would see if they tried adding a system column for a table when adding
+it to the publication in the first place.
+
+Doing this requires making the function which validates the list of
+columns an extern function.  The signature of the static function wasn't
+an ideal external API as it made the code more complex than it needed to be.
+Here we adjust the function to have it populate a Bitmapset of attribute
+numbers.  Doing it this way allows code simplification.
+
+There was no particular bug here other than the weird error message, so
+no backpatch.
+
+Bug: #18558
+Reported-by: Alexander Lakhin <exclusion@gmail.com>
+Author: Peter Smith, David Rowley
+Discussion: https://postgr.es/m/18558-411bc81b03592125@postgresql.org_|_
