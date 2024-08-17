@@ -21329,4 +21329,17 @@ no backpatch.
 Bug: #18558
 Reported-by: Alexander Lakhin <exclusion@gmail.com>
 Author: Peter Smith, David Rowley
-Discussion: https://postgr.es/m/18558-411bc81b03592125@postgresql.org_|_
+Discussion: https://postgr.es/m/18558-411bc81b03592125@postgresql.org_|_Fix extraction of week and quarter fields from intervals.
+
+"EXTRACT(WEEK FROM interval_value)" formerly threw an error.
+Define it as "tm->tm_mday / 7".  (With C99 division semantics,
+this gives consistent results for negative intervals.)
+
+"EXTRACT(QUARTER FROM interval_value)" has been implemented
+all along, but it formerly gave extremely strange results for
+negative intervals.  Fix it so that the output for -N months
+is the negative of the output for N months.
+
+Per bug #18348 from Michael Bondarenko and subsequent discussion.
+
+Discussion: https://postgr.es/m/18348-b097a3587dfde8a4@postgresql.org_|_
