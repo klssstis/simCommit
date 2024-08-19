@@ -21342,4 +21342,27 @@ is the negative of the output for N months.
 
 Per bug #18348 from Michael Bondarenko and subsequent discussion.
 
-Discussion: https://postgr.es/m/18348-b097a3587dfde8a4@postgresql.org_|_
+Discussion: https://postgr.es/m/18348-b097a3587dfde8a4@postgresql.org_|_Fix regression in TLS session ticket disabling
+
+Commit 274bbced disabled session tickets for TLSv1.3 on top of the
+already disabled TLSv1.2 session tickets, but accidentally caused
+a regression where TLSv1.2 session tickets were incorrectly sent.
+Fix by unconditionally disabling TLSv1.2 session tickets and only
+disable TLSv1.3 tickets when the right version of OpenSSL is used.
+
+Backpatch to all supported branches.
+
+Reported-by: Cameron Vogt <cvogt@automaticcontrols.net>
+Reported-by: Fire Emerald <fire.github@gmail.com>
+Reviewed-by: Jacob Champion <jacob.champion@enterprisedb.com>
+Discussion: https://postgr.es/m/DM6PR16MB3145CF62857226F350C710D1AB852@DM6PR16MB3145.namprd16.prod.outlook.com
+Backpatch-through: v12_|_Search for SLRU page only in its own bank
+
+One of the two slot scans in SlruSelectLRUPage was not walking only the
+slots in the specific bank where the buffer could be; change it to do
+that.
+
+Oversight in 53c2a97a9266.
+
+Author: Sergey Sargsyan <sergey.sargsyan.2001@gmail.com>
+Discussion: https://postgr.es/m/18582-5f301dd30ba91a38@postgresql.org_|_
