@@ -21365,4 +21365,22 @@ that.
 Oversight in 53c2a97a9266.
 
 Author: Sergey Sargsyan <sergey.sargsyan.2001@gmail.com>
-Discussion: https://postgr.es/m/18582-5f301dd30ba91a38@postgresql.org_|_
+Discussion: https://postgr.es/m/18582-5f301dd30ba91a38@postgresql.org_|_Avoid failure to open dropped detached partition
+
+When a partition is detached and immediately dropped, a prepared
+statement could try to compute a new partition descriptor that includes
+it.  This leads to this kind of error:
+ERROR:  could not open relation with OID 457639
+
+Avoid this by skipping the partition in expand_partitioned_rtentry if it
+doesn't exist.
+
+Noted by me while investigating bug #18559.  Kuntal Gosh helped to
+identify the exact failure.
+
+Backpatch to 14, where DETACH CONCURRENTLY was introduced.
+
+Author: Álvaro Herrera <alvherre@alvh.no-ip.org>
+Reviewed-by: Kuntal Ghosh <kuntalghosh.2007@gmail.com>
+Reviewed-by: Junwang Zhao <zhjwpku@gmail.com>
+Discussion: https://postgr.es/m/202408122233.bo4adt3vh5bi@alvherre.pgsql_|_
