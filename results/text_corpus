@@ -21383,4 +21383,18 @@ Backpatch to 14, where DETACH CONCURRENTLY was introduced.
 Author: Álvaro Herrera <alvherre@alvh.no-ip.org>
 Reviewed-by: Kuntal Ghosh <kuntalghosh.2007@gmail.com>
 Reviewed-by: Junwang Zhao <zhjwpku@gmail.com>
-Discussion: https://postgr.es/m/202408122233.bo4adt3vh5bi@alvherre.pgsql_|_
+Discussion: https://postgr.es/m/202408122233.bo4adt3vh5bi@alvherre.pgsql_|_Disallow creating binary-coercible casts involving range types.
+
+For a long time we have forbidden binary-coercible casts to or from
+composite and array types, because such a cast cannot work correctly:
+the type OID embedded in the value would need to change, but it won't
+in a binary coercion.  That reasoning applies equally to range types,
+but we overlooked installing a similar restriction here when we
+invented range types.  Do so now.
+
+Given the lack of field complaints, we won't change this in stable
+branches, but it seems not too late for v17.
+
+Per discussion of a problem noted by Peter Eisentraut.
+
+Discussion: https://postgr.es/m/076968e1-0852-40a9-bc0b-117cd3f0e43c@eisentraut.org_|_
