@@ -21397,4 +21397,42 @@ branches, but it seems not too late for v17.
 
 Per discussion of a problem noted by Peter Eisentraut.
 
-Discussion: https://postgr.es/m/076968e1-0852-40a9-bc0b-117cd3f0e43c@eisentraut.org_|_
+Discussion: https://postgr.es/m/076968e1-0852-40a9-bc0b-117cd3f0e43c@eisentraut.org_|_Fix mis-deparsing of ORDER BY lists when there is a name conflict.
+
+If an ORDER BY item in SELECT is a bare identifier, the parser
+first seeks it as an output column name of the SELECT (for SQL92
+compatibility).  However, ruleutils.c is expecting the SQL99
+interpretation where such a name is an input column name.  So it's
+possible to produce an incorrect display of a view in the (admittedly
+pretty ill-advised) case where some other column is renamed in the
+SELECT output list to match an ORDER BY column.
+
+This can be fixed by table-qualifying such names in the dumped
+view text.  To avoid cluttering less-ill-advised queries, we'd
+like to do so only when there's an actual name conflict.
+That requires passing the current get_query_def call's resultDesc
+parameter down to get_variable, so that it can determine what
+the output column names are.  In hopes of reducing rather than
+increasing notational clutter in ruleutils.c, I moved that value
+into the deparse_context struct and removed it from the parameter
+lists of get_query_def's other subroutines.
+
+I made a few other cosmetic changes while at it:
+* Likewise move the colNamesVisible parameter into deparse_context.
+* Rename deparse_context's windowTList field to targetList,
+since it's no longer used only in connection with WINDOW clauses.
+* Replace the special_exprkind field with a bool inGroupBy,
+since that was all it was being used for, and the apparent
+flexibility of storing a ParseExprKind proved to be illusory.
+(We need a separate varInOrderBy field to make this patch work.)
+* Remove useless save/restore logic in get_select_query_def.
+
+In principle, this bug is quite old.  However, it seems unreachable
+before 1b4d280ea, because before that the presence of "new" and "old"
+entries in a view's rangetable caused us to always table-qualify every
+Var reference in dumped views.  Hence, back-patch to v16 where that
+came in.
+
+Per bug #18589 from Quynh Tran.
+
+Discussion: https://postgr.es/m/18589-70091cb81db1a3f1@postgresql.org_|_
