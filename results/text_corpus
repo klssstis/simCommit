@@ -21435,4 +21435,84 @@ came in.
 
 Per bug #18589 from Quynh Tran.
 
-Discussion: https://postgr.es/m/18589-70091cb81db1a3f1@postgresql.org_|_
+Discussion: https://postgr.es/m/18589-70091cb81db1a3f1@postgresql.org_|_Fix unique key checks in JSON object constructors
+
+When building a JSON object, the code builds a hash table of keys, to
+allow checking if the keys are unique. The uniqueness check and adding
+the new key happens in json_unique_check_key(), but this assumes the
+pointer to the key remains valid.
+
+Unfortunately, two places passed pointers to keys in a buffer, while
+also appending more data (additional key/value pairs) to the buffer.
+With enough data the buffer is resized by enlargeStringInfo(), which
+calls repalloc(), invalidating the earlier key pointers.
+
+Due to this the uniqueness check may fail with both false negatives and
+false positives, producing JSON objects with duplicate keys or failing
+to produce a perfectly valid JSON object.
+
+This affects multiple functions that enforce uniqueness of keys, all
+introduced in PG16 with the new SQL/JSON:
+
+- json_object_agg_unique / jsonb_object_agg_unique
+- json_object / jsonb_objectagg
+
+Existing regression tests did not detect the issue, simply because the
+initial buffer size is 1024 and the objects were small enough not to
+require the repalloc.
+
+With a sufficiently large object, AddressSanitizer reported the access
+to invalid memory immediately. So would valgrind, of course.
+
+Fixed by copying the key into the hash table memory context, and adding
+regression tests with enough data to repalloc the buffer. Backpatch to
+16, where the functions were introduced.
+
+Reported by Alexander Lakhin. Investigation and initial fix by Junwang
+Zhao, with various improvements and tests by me.
+
+Reported-by: Alexander Lakhin
+Author: Junwang Zhao, Tomas Vondra
+Backpatch-through: 16
+Discussion: https://postgr.es/m/18598-3279ed972a2347c7@postgresql.org
+Discussion: https://postgr.es/m/CAEG8a3JjH0ReJF2_O7-8LuEbO69BxPhYeXs95_x7+H9AMWF1gw@mail.gmail.com_|_Fix unique key checks in JSON object constructors
+
+When building a JSON object, the code builds a hash table of keys, to
+allow checking if the keys are unique. The uniqueness check and adding
+the new key happens in json_unique_check_key(), but this assumes the
+pointer to the key remains valid.
+
+Unfortunately, two places passed pointers to keys in a buffer, while
+also appending more data (additional key/value pairs) to the buffer.
+With enough data the buffer is resized by enlargeStringInfo(), which
+calls repalloc(), invalidating the earlier key pointers.
+
+Due to this the uniqueness check may fail with both false negatives and
+false positives, producing JSON objects with duplicate keys or failing
+to produce a perfectly valid JSON object.
+
+This affects multiple functions that enforce uniqueness of keys, all
+introduced in PG16 with the new SQL/JSON:
+
+- json_object_agg_unique / jsonb_object_agg_unique
+- json_object / jsonb_objectagg
+
+Existing regression tests did not detect the issue, simply because the
+initial buffer size is 1024 and the objects were small enough not to
+require the repalloc.
+
+With a sufficiently large object, AddressSanitizer reported the access
+to invalid memory immediately. So would valgrind, of course.
+
+Fixed by copying the key into the hash table memory context, and adding
+regression tests with enough data to repalloc the buffer. Backpatch to
+16, where the functions were introduced.
+
+Reported by Alexander Lakhin. Investigation and initial fix by Junwang
+Zhao, with various improvements and tests by me.
+
+Reported-by: Alexander Lakhin
+Author: Junwang Zhao, Tomas Vondra
+Backpatch-through: 16
+Discussion: https://postgr.es/m/18598-3279ed972a2347c7@postgresql.org
+Discussion: https://postgr.es/m/CAEG8a3JjH0ReJF2_O7-8LuEbO69BxPhYeXs95_x7+H9AMWF1gw@mail.gmail.com_|_
