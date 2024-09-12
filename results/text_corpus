@@ -21515,4 +21515,26 @@ Reported-by: Alexander Lakhin
 Author: Junwang Zhao, Tomas Vondra
 Backpatch-through: 16
 Discussion: https://postgr.es/m/18598-3279ed972a2347c7@postgresql.org
-Discussion: https://postgr.es/m/CAEG8a3JjH0ReJF2_O7-8LuEbO69BxPhYeXs95_x7+H9AMWF1gw@mail.gmail.com_|_
+Discussion: https://postgr.es/m/CAEG8a3JjH0ReJF2_O7-8LuEbO69BxPhYeXs95_x7+H9AMWF1gw@mail.gmail.com_|_Remove incorrect Assert.
+
+check_agglevels_and_constraints() asserted that if we find an
+aggregate function in an EXPR_KIND_FROM_SUBSELECT expression, the
+expression must be in a LATERAL subquery.  Alexander Lakhin found a
+case where that's not so: because of the odd scoping rules for NEW/OLD
+within a rule, a reference to NEW/OLD could cause an aggregate to be
+considered top-level even though it's in an unmarked sub-select.
+The error message that would be thrown seems sufficiently on-point,
+so just remove the Assert.  (Hence, this is not a bug for production
+builds.)
+
+This Assert was added by me in commit eaccfded9 (9.3 era).  It looks
+like I put it in to cross-check that the new logic for detecting
+misplaced aggregates (using agglevelsup) caught the same cases that a
+previous check on p_lateral_active did.  So there might have been some
+related misbehavior before eaccfded9 ... but that's very ancient
+history by now, so I didn't dig any deeper.
+
+Per bug #18608 from Alexander Lakhin.  Back-patch to all supported
+branches.
+
+Discussion: https://postgr.es/m/18608-48de0717508ee429@postgresql.org_|_
