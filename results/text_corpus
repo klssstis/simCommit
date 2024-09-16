@@ -21537,4 +21537,32 @@ history by now, so I didn't dig any deeper.
 Per bug #18608 from Alexander Lakhin.  Back-patch to all supported
 branches.
 
-Discussion: https://postgr.es/m/18608-48de0717508ee429@postgresql.org_|_
+Discussion: https://postgr.es/m/18608-48de0717508ee429@postgresql.org_|_Replace usages of xmlXPathCompile() with xmlXPathCtxtCompile().
+
+In existing releases of libxml2, xmlXPathCompile can be driven
+to stack overflow because it fails to protect itself against
+too-deeply-nested input.  While there is an upstream fix as of
+yesterday, it will take years for that to propagate into all
+shipping versions.  In the meantime, we can protect our own
+usages basically for free by calling xmlXPathCtxtCompile instead.
+
+(The actual bug is that libxml2 keeps its nesting counter in the
+xmlXPathContext, and its parsing code was willing to just skip
+counting nesting levels if it didn't have a context.  So if we supply
+a context, all is well.  It seems odd actually that it works at all
+to not supply a context, because this means that XPath parsing does
+not have access to XML namespace info.  Apparently libxml2 never
+checks namespaces until runtime?  Anyway, this seems like good
+future-proofing even if its only immediate effect is to dodge a bug.)
+
+Sadly, this hack only offers protection with libxml2 2.9.11 and newer.
+Before that there are multiple similar problems, so if you are
+processing untrusted XML it behooves you to get a newer version.
+But we have some pretty old libxml2 in the buildfarm, so it seems
+impractical to add a regression test to verify this fix.
+
+Per bug #18617 from Jingzhou Fu.  Back-patch to all supported
+versions.
+
+Discussion: https://postgr.es/m/18617-1cee4d2ed1f4e7ae@postgresql.org
+Discussion: https://gitlab.gnome.org/GNOME/libxml2/-/issues/799_|_
