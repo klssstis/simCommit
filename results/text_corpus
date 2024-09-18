@@ -21565,4 +21565,39 @@ Per bug #18617 from Jingzhou Fu.  Back-patch to all supported
 versions.
 
 Discussion: https://postgr.es/m/18617-1cee4d2ed1f4e7ae@postgresql.org
-Discussion: https://gitlab.gnome.org/GNOME/libxml2/-/issues/799_|_
+Discussion: https://gitlab.gnome.org/GNOME/libxml2/-/issues/799_|_Don't enter parallel mode when holding interrupts.
+
+Doing so caused the leader to hang in wait_event=ParallelFinish, which
+required an immediate shutdown to resolve.  Back-patch to v12 (all
+supported versions).
+
+Francesco Degrassi
+
+Discussion: https://postgr.es/m/CAC-SaSzHUKT=vZJ8MPxYdC_URPfax+yoA1hKTcF4ROz_Q6z0_Q@mail.gmail.com_|_Repair pg_upgrade for identity sequences with non-default persistence.
+
+Since we introduced unlogged sequences in v15, identity sequences
+have defaulted to having the same persistence as their owning table.
+However, it is possible to change that with ALTER SEQUENCE, and
+pg_dump tries to preserve the logged-ness of sequences when it doesn't
+match (as indeed it wouldn't for an unlogged table from before v15).
+
+The fly in the ointment is that ALTER SEQUENCE SET [UN]LOGGED fails
+in binary-upgrade mode, because it needs to assign a new relfilenode
+which we cannot permit in that mode.  Thus, trying to pg_upgrade a
+database containing a mismatching identity sequence failed.
+
+To fix, add syntax to ADD/ALTER COLUMN GENERATED AS IDENTITY to allow
+the sequence's persistence to be set correctly at creation, and use
+that instead of ALTER SEQUENCE SET [UN]LOGGED in pg_dump.  (I tried to
+make SET [UN]LOGGED work without any pg_dump modifications, but that
+seems too fragile to be a desirable answer.  This way should be
+markedly faster anyhow.)
+
+In passing, document the previously-undocumented SEQUENCE NAME option
+that pg_dump also relies on for identity sequences; I see no value
+in trying to pretend it doesn't exist.
+
+Per bug #18618 from Anthony Hsu.
+Back-patch to v15 where we invented this stuff.
+
+Discussion: https://postgr.es/m/18618-d4eb26d669ed110a@postgresql.org_|_
