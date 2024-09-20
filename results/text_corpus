@@ -21600,4 +21600,25 @@ in trying to pretend it doesn't exist.
 Per bug #18618 from Anthony Hsu.
 Back-patch to v15 where we invented this stuff.
 
-Discussion: https://postgr.es/m/18618-d4eb26d669ed110a@postgresql.org_|_
+Discussion: https://postgr.es/m/18618-d4eb26d669ed110a@postgresql.org_|_Restore relmapper state early enough in parallel workers.
+
+We need to do RestoreRelationMap before loading catalog-derived
+state, else the worker may end up with catalog relcache entries
+containing stale relfilenode data.  Move up RestoreReindexState
+too, on the principle that that should also happen before we
+do much of any catalog access.
+
+I think ideally these things would happen even before InitPostgres,
+but there are various problems standing in the way of that, notably
+that the relmapper thinks "active" mappings should be discarded at
+transaction end.  The implication of this is that InitPostgres and
+RestoreLibraryState will see the same catalog state as an independent
+backend would see, which is probably fine; at least, it's been like
+that all along.
+
+Per report from Justin Pryzby.  There is a case to be made that
+this should be back-patched.  But given the lack of complaints
+before 6e086fa2e and the short amount of time remaining before
+17.0 wraps, I'll just put it in HEAD for now.
+
+Discussion: https://postgr.es/m/ZuoU_8EbSTE14o1U@pryzbyj2023_|_
