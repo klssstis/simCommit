@@ -21621,4 +21621,19 @@ this should be back-patched.  But given the lack of complaints
 before 6e086fa2e and the short amount of time remaining before
 17.0 wraps, I'll just put it in HEAD for now.
 
-Discussion: https://postgr.es/m/ZuoU_8EbSTE14o1U@pryzbyj2023_|_
+Discussion: https://postgr.es/m/ZuoU_8EbSTE14o1U@pryzbyj2023_|_vacuumdb: Skip temporary tables in query to build list of relations
+
+Running vacuumdb with a non-superuser while another user has created a
+temporary table would lead to a mid-flight permission failure,
+interrupting the operation.  vacuum_rel() skips temporary relations of
+other backends, and it makes no sense for vacuumdb to know about these
+relations, so let's switch it to ignore temporary relations entirely.
+
+Adding a qual in the query based on relpersistence simplifies the
+generation of its WHERE clause in vacuum_one_database(), per se the
+removal of "has_where".
+
+Author: VaibhaveS, Michael Paquier
+Reviewed-by: Fujii Masao
+Discussion: https://postgr.es/m/CAM_eQjwfAR=y3G1fGyS1U9FTmc+FyJm9amNfY2QCZBnDDbNPZg@mail.gmail.com
+Backpatch-through: 12_|_
