@@ -21636,4 +21636,26 @@ removal of "has_where".
 Author: VaibhaveS, Michael Paquier
 Reviewed-by: Fujii Masao
 Discussion: https://postgr.es/m/CAM_eQjwfAR=y3G1fGyS1U9FTmc+FyJm9amNfY2QCZBnDDbNPZg@mail.gmail.com
+Backpatch-through: 12_|_Fix incorrect memory access in VACUUM FULL with invalid toast indexes
+
+An invalid toast index is skipped in reindex_relation().  These would be
+remnants of a failed REINDEX CONCURRENTLY and they should never been
+rebuilt as there can only be one valid toast index at a time.
+
+REINDEX_REL_SUPPRESS_INDEX_USE, used by CLUSTER and VACUUM FULL, needs
+to maintain a list of the indexes being processed.  The list of indexes
+is retrieved from the relation cache, and includes invalid indexes.  The
+code has missed that invalid toast indexes are ignored in
+reindex_relation() as this leads to a hard failure in reindex_index(),
+and they were left in the reindex pending list, making the list
+inconsistent when rechecked.  The incorrect memory access was happening
+when scanning pg_class for the refresh of pg_database.datfrozenxid, when
+doing a scan of pg_class.
+
+This issue exists since REINDEX CONCURRENTLY exists, where invalid toast
+indexes can exist, so backpatch all the way down.
+
+Reported-by: Alexander Lakhin
+Author: Tender Wang
+Discussion: https://postgr.es/m/18630-9aed99c38830657d@postgresql.org
 Backpatch-through: 12_|_
