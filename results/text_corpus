@@ -21658,4 +21658,36 @@ indexes can exist, so backpatch all the way down.
 Reported-by: Alexander Lakhin
 Author: Tender Wang
 Discussion: https://postgr.es/m/18630-9aed99c38830657d@postgresql.org
-Backpatch-through: 12_|_
+Backpatch-through: 12_|_Recalculate where-needed data accurately after a join removal.
+
+Up to now, remove_rel_from_query() has done a pretty shoddy job
+of updating our where-needed bitmaps (per-Var attr_needed and
+per-PlaceHolderVar ph_needed relid sets).  It removed direct mentions
+of the to-be-removed baserel and outer join, which is the minimum
+amount of effort needed to keep the data structures self-consistent.
+But it didn't account for the fact that the removed join ON clause
+probably mentioned Vars of other relations, and those Vars might now
+not be needed as high up in the join tree as before.  It's easy to
+show cases where this results in failing to remove a lower outer join
+that could also have been removed.
+
+To fix, recalculate the where-needed bitmaps from scratch after
+each successful join removal.  This sounds expensive, but it seems
+to add only negligible planner runtime.  (We cheat a little bit
+by preserving "relation 0" entries in the bitmaps, allowing us to
+skip re-scanning the targetlist and HAVING qual.)
+
+The submitted test case drew attention because we had successfully
+optimized away the lower join prior to v16.  I suspect that that's
+somewhat accidental and there are related cases that were never
+optimized before and now can be.  I've not tried to come up with
+one, though.
+
+Perhaps we should back-patch this into v16 and v17 to repair the
+performance regression.  However, since it took a year for anyone
+to notice the problem, it can't be affecting too many people.  Let's
+let the patch bake awhile in HEAD, and see if we get more complaints.
+
+Per bug #18627 from Mikaël Gourlaouen.  No back-patch for now.
+
+Discussion: https://postgr.es/m/18627-44f950eb6a8416c2@postgresql.org_|_
