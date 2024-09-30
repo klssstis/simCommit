@@ -21690,4 +21690,22 @@ let the patch bake awhile in HEAD, and see if we get more complaints.
 
 Per bug #18627 from Mikaël Gourlaouen.  No back-patch for now.
 
-Discussion: https://postgr.es/m/18627-44f950eb6a8416c2@postgresql.org_|_
+Discussion: https://postgr.es/m/18627-44f950eb6a8416c2@postgresql.org_|_reindexdb: Skip reindexing temporary tables and indexes.
+
+Reindexing temp tables or indexes of other sessions is not allowed.
+However, reindexdb in parallel mode previously listed them as
+the objects to process, leading to failures.
+
+This commit ensures reindexdb in parallel mode skips temporary tables
+and indexes by adding a condition based on the relpersistence column
+in pg_class to the object listing queries, preventing these issues.
+
+Note that this commit does not affect reindexdb when temporary tables
+or indexes are explicitly specified using the -t or -j options;
+reindexdb in that case still does not skip them and can cause an error.
+
+Back-patch to v13 where parallel mode was introduced in reindexdb.
+
+Author: Fujii Masao
+Reviewed-by: Michael Paquier
+Discussion: https://postgr.es/m/5f37ee56-14fb-44fe-9150-9eb97e10538b@oss.nttdata.com_|_
