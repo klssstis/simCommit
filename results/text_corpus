@@ -21708,4 +21708,24 @@ Back-patch to v13 where parallel mode was introduced in reindexdb.
 
 Author: Fujii Masao
 Reviewed-by: Michael Paquier
-Discussion: https://postgr.es/m/5f37ee56-14fb-44fe-9150-9eb97e10538b@oss.nttdata.com_|_
+Discussion: https://postgr.es/m/5f37ee56-14fb-44fe-9150-9eb97e10538b@oss.nttdata.com_|_Fix incorrect non-strict join recheck in MERGE WHEN NOT MATCHED BY SOURCE.
+
+If a MERGE command contains WHEN NOT MATCHED BY SOURCE actions, the
+merge join condition is used by the executor to distinguish MATCHED
+from NOT MATCHED BY SOURCE cases. However, this qual is executed using
+the output from the join subplan node, which nulls the output from the
+source relation in the not matched case, and so the result may be
+incorrect if the join condition is "non-strict" -- for example,
+something like "src.col IS NOT DISTINCT FROM tgt.col".
+
+Fix this by enhancing the join recheck condition with an additional
+"src IS NOT NULL" check, so that it does the right thing when
+evaluated using the output from the join subplan.
+
+Noted by Tom Lane while investigating bug #18634 from Alexander
+Lakhin.
+
+Back-patch to v17, where WHEN NOT MATCHED BY SOURCE support was added
+to MERGE.
+
+Discussion: https://postgr.es/m/18634-db5299c937877f2b%40postgresql.org_|_
