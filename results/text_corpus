@@ -21728,4 +21728,32 @@ Lakhin.
 Back-patch to v17, where WHEN NOT MATCHED BY SOURCE support was added
 to MERGE.
 
+Discussion: https://postgr.es/m/18634-db5299c937877f2b%40postgresql.org_|_Fix wrong varnullingrels error for MERGE WHEN NOT MATCHED BY SOURCE.
+
+If a MERGE command contains WHEN NOT MATCHED BY SOURCE actions, the
+source relation appears on the outer side of the join. Thus, any Vars
+referring to the source in the merge join condition, actions, and
+RETURNING list should be marked as nullable by the join, since they
+are used in the ModifyTable node above the join. Note that this only
+applies to the copy of join condition used in the executor to
+distinguish MATCHED from NOT MATCHED BY SOURCE cases. Vars in the
+original join condition, inside the join node itself, should not be
+marked.
+
+Failure to correctly mark these Vars led to a "wrong varnullingrels"
+error in the final stage of query planning, in some circumstances. We
+happened to get away without this in all previous tests, since they
+all involved a ModifyTable node directly on top of the join node, so
+that the top plan targetlist coincided with the output of the join,
+and the varnullingrels check was more lax. However, if another plan
+node, such as a one-time filter Result node, gets inserted between the
+ModifyTable node and the join node, then a stricter check is applied,
+which fails.
+
+Per bug #18634 from Alexander Lakhin. Thanks to Tom Lane and Richard
+Guo for review and analysis.
+
+Back-patch to v17, where WHEN NOT MATCHED BY SOURCE support was added
+to MERGE.
+
 Discussion: https://postgr.es/m/18634-db5299c937877f2b%40postgresql.org_|_
