@@ -21756,4 +21756,49 @@ Guo for review and analysis.
 Back-patch to v17, where WHEN NOT MATCHED BY SOURCE support was added
 to MERGE.
 
-Discussion: https://postgr.es/m/18634-db5299c937877f2b%40postgresql.org_|_
+Discussion: https://postgr.es/m/18634-db5299c937877f2b%40postgresql.org_|_Reject non-ASCII locale names.
+
+Commit bf03cfd1 started scanning all available BCP 47 locale names on
+Windows.  This caused an abort/crash in the Windows runtime library if
+the default locale name contained non-ASCII characters, because of our
+use of the setlocale() save/restore pattern with "char" strings.  After
+switching to another locale with a different encoding, the saved name
+could no longer be understood, and setlocale() would abort.
+
+"Turkish_Türkiye.1254" is the example from recent reports, but there are
+other examples of countries and languages with non-ASCII characters in
+their names, and they appear in Windows' (old style) locale names.
+
+To defend against this:
+
+1.  In initdb, reject non-ASCII locale names given explicity on the
+command line, or returned by the operating system environment with
+setlocale(..., ""), or "canonicalized" by the operating system when we
+set it.
+
+2.  In initdb only, perform the save-and-restore with Windows'
+non-standard wchar_t variant of setlocale(), so that it is not subject
+to round trip failures stemming from char string encoding confusion.
+
+3.  In the backend, we don't have to worry about the save-and-restore
+problem because we have already vetted the defaults, so we just have to
+make sure that CREATE DATABASE also rejects non-ASCII names in any new
+databases.  SET lc_XXX doesn't suffer from the problem, but the ban
+applies to it too because it uses check_locale().  CREATE COLLATION
+doesn't suffer from the problem either, but it doesn't use
+check_locale() so it is not included in the new ban for now, to minimize
+the change.
+
+Anyone who encounters the new error message should either create a new
+duplicated locale with an ASCII-only name using Windows Locale Builder,
+or consider using BCP 47 names like "tr-TR".  Users already couldn't
+initialize a cluster with "Turkish_Türkiye.1254" on PostgreSQL 16+, but
+the new failure mode is an error message that explains why, instead of a
+crash.
+
+Back-patch to 16, where bf03cfd1 landed.  Older versions are affected
+in theory too, but only 16 and later are causing crash reports.
+
+Reviewed-by: Andrew Dunstan <andrew@dunslane.net> (the idea, not the patch)
+Reported-by: Haifang Wang (Centific Technologies Inc) <v-haiwang@microsoft.com>
+Discussion: https://postgr.es/m/PH8PR21MB3902F334A3174C54058F792CE5182%40PH8PR21MB3902.namprd21.prod.outlook.com_|_
