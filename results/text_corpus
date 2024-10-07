@@ -21831,4 +21831,43 @@ clearing idxcomment in the copied IndexStmt would be a safer fix.)
 Per bug #18637 from usamoi.  Back-patch to v17 where the search_path
 change came in.
 
-Discussion: https://postgr.es/m/18637-f51e314546e3ba2a@postgresql.org_|_
+Discussion: https://postgr.es/m/18637-f51e314546e3ba2a@postgresql.org_|_Fix fetching default toast value during decoding of in-progress transactions.
+
+During logical decoding of in-progress transactions, we perform the toast
+table scan while fetching the default toast value for an attribute. We
+forgot to initialize the flag during this scan to indicate that the system
+table scan is in progress. We need this flag to ensure that during logical
+decoding we never directly access the tableam or heap APIs because we check
+for concurrent aborts only in systable_* APIs.
+
+Reported-by: Alexander Lakhin
+Author: Takeshi Ideriha, Hou Zhijie
+Reviewed-by: Amit Kapila, Hou Zhijie
+Backpatch-through: 14
+Discussion: https://postgr.es/m/18641-6687273b7f15269d@postgresql.org_|_Ignore not-yet-defined Portals in pg_cursors view.
+
+pg_cursor() supposed that any Portal it finds in the hash table must
+have sourceText set up, but there's an edge case where that is not so.
+A newly-created Portal has sourceText = NULL, and that doesn't change
+until PortalDefineQuery is called.  In SPI_cursor_open_internal,
+we perform GetCachedPlan between CreatePortal and PortalDefineQuery,
+and it's possible for user-defined code to execute during that
+planning and cause a fetch from the pg_cursors view, resulting in a
+null-pointer-dereference crash.  (It looks like the same could happen
+in exec_bind_message, but I've not tried to provoke a failure there.)
+
+I considered trying to fix this by setting sourceText sooner, but
+there may be instances of this same calling pattern in extensions,
+and we couldn't be sure they'd get the memo promptly.  It seems
+better to redefine pg_cursor as not showing Portals that have
+not yet had PortalDefineQuery called on them, which we can do by
+just skipping them if sourceText is still NULL.
+
+(Before a1c692358, pg_cursor would instead return a row with NULL
+in the statement column.  We could revert to that behavior but it
+doesn't really seem like a better definition, especially since our
+documentation doesn't suggest that the column could be NULL.)
+
+Per report from PetSerAl.  Back-patch to all supported branches.
+
+Discussion: https://postgr.es/m/CAKygsHTBXLXjwV43kpZa+Cs+XTiaeeJiZdL4cPBm9f4MTdw7wg@mail.gmail.com_|_
