@@ -21870,4 +21870,27 @@ documentation doesn't suggest that the column could be NULL.)
 
 Per report from PetSerAl.  Back-patch to all supported branches.
 
-Discussion: https://postgr.es/m/CAKygsHTBXLXjwV43kpZa+Cs+XTiaeeJiZdL4cPBm9f4MTdw7wg@mail.gmail.com_|_
+Discussion: https://postgr.es/m/CAKygsHTBXLXjwV43kpZa+Cs+XTiaeeJiZdL4cPBm9f4MTdw7wg@mail.gmail.com_|_Fix search_path cache initialization.
+
+The cache needs to be available very early, so don't rely on
+InitializeSearchPath() to initialize the it.
+
+Reported-by: Murat Efendioğlu
+Discussion: https://postgr.es/m/CACbCzujQ4zS8MM1bx-==+tr+D3Hk5G1cjN4XkUQ+Q=cEpwhzqg@mail.gmail.com
+Backpatch-through: 17_|_vacuumdb: Schema-qualify operator in catalog query's WHERE clause.
+
+Commit 1ab67c9dfa, which modified this catalog query so that it
+doesn't return temporary relations, forgot to schema-qualify the
+operator.  A comment earlier in the function implores us to fully
+qualify everything in the query:
+
+	 * Since we execute the constructed query with the default search_path
+	 * (which could be unsafe), everything in this query MUST be fully
+	 * qualified.
+
+This commit fixes that.  While at it, add a newline for consistency
+with surrounding code.
+
+Reviewed-by: Noah Misch
+Discussion: https://postgr.es/m/ZwQJYcuPPUsF0reU%40nathan
+Backpatch-through: 12_|_
