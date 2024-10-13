@@ -21893,4 +21893,36 @@ with surrounding code.
 
 Reviewed-by: Noah Misch
 Discussion: https://postgr.es/m/ZwQJYcuPPUsF0reU%40nathan
-Backpatch-through: 12_|_
+Backpatch-through: 12_|_Correctly identify which EC members are computable at a plan node.
+
+find_computable_ec_member() had the wrong mental model of what
+its primary caller prepare_sort_from_pathkeys() would do with
+the selected EquivalenceClass member expression.  We will not
+compute the EC expression in a plan node atop the one returning
+the passed-in targetlist; rather, the EC expression will be
+computed as an additional column of that targetlist.  So any
+Var or quasi-Var used in the given tlist is also available to the
+EC expression.  In simple cases this makes no difference because
+the given tlist is just a list of Vars or quasi-Vars --- but if
+we are considering an appendrel member produced by flattening
+a UNION ALL, the tlist may contain expressions, resulting in
+failure to match and a "could not find pathkey item to sort"
+error.
+
+To fix, we can flatten both the tlist and the EC members with
+pull_var_clause(), and then just check for subset-ness, so
+that the code is actually shorter than before.
+
+While this bug is quite old, the present patch only works back to
+v13.  We could possibly make it work in v12 by back-patching parts
+of 375398244.  On the whole though I don't like the risk/reward
+ratio of that idea.  v12's final release is next month, meaning
+there would be no chance to correct matters if the patch causes a
+regression.  Since this failure has escaped notice for 14 years,
+it's likely nobody will hit it in the field with v12.
+
+Per bug #18652 from Alexander Lakhin.
+
+Andrei Lepikhov and Tom Lane
+
+Discussion: https://postgr.es/m/18652-deaa782ebcca85d1@postgresql.org_|_
