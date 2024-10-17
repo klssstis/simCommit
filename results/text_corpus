@@ -21925,4 +21925,65 @@ Per bug #18652 from Alexander Lakhin.
 
 Andrei Lepikhov and Tom Lane
 
-Discussion: https://postgr.es/m/18652-deaa782ebcca85d1@postgresql.org_|_
+Discussion: https://postgr.es/m/18652-deaa782ebcca85d1@postgresql.org_|_Fix extreme skew detection in Parallel Hash Join.
+
+After repartitioning the inner side of a hash join that would have
+exceeded the allowed size, we check if all the tuples from a parent
+partition moved to one child partition.  That is evidence that it
+contains duplicate keys and later attempts to repartition will also
+fail, so we should give up trying to limit memory (for lack of a better
+fallback strategy).
+
+A thinko prevented the check from working correctly in partition 0 (the
+one that is partially loaded into memory already).  After
+repartitioning, we should check for extreme skew if the *parent*
+partition's space_exhausted flag was set, not the child partition's.
+The consequence was repeated futile repartitioning until per-partition
+data exceeded various limits including "ERROR: invalid DSA memory alloc
+request size 1811939328", OS allocation failure, or temporary disk space
+errors.  (We could also do something about some of those symptoms, but
+that's material for separate patches.)
+
+This problem only became likely when PostgreSQL 16 introduced support
+for Parallel Hash Right/Full Join, allowing NULL keys into the hash
+table.  Repartitioning always leaves NULL in partition 0, no matter how
+many times you do it, because the hash value is all zero bits.  That's
+unlikely for other hashed values, but they might still have caused
+wasted extra effort before giving up.
+
+Back-patch to all supported releases.
+
+Reported-by: Craig Milhiser <craig@milhiser.com>
+Reviewed-by: Andrei Lepikhov <lepihov@gmail.com>
+Discussion: https://postgr.es/m/CA%2BwnhO1OfgXbmXgC4fv_uu%3DOxcDQuHvfoQ4k0DFeB0Qqd-X-rQ%40mail.gmail.com_|_Further refine _SPI_execute_plan's rule for atomic execution.
+
+Commit 2dc1deaea turns out to have been still a brick shy of a load,
+because CALL statements executing within a plpgsql exception block
+could still pass the wrong snapshot to stable functions within the
+CALL's argument list.  That happened because standard_ProcessUtility
+forces isAtomicContext to true if IsTransactionBlock is true, which
+it always will be inside a subtransaction.  Then ExecuteCallStmt
+would think it does not need to push a new snapshot --- but
+_SPI_execute_plan didn't do so either, since it thought it was in
+nonatomic mode.
+
+The best fix for this seems to be for _SPI_execute_plan to operate
+in atomic execution mode if IsSubTransaction() is true, even when the
+SPI context as a whole is non-atomic.  This makes _SPI_execute_plan
+have the same rules about when non-atomic execution is allowed as
+_SPI_commit/_SPI_rollback have about when COMMIT/ROLLBACK are allowed,
+which seems appropriately symmetric.  (If anyone ever tries to allow
+COMMIT/ROLLBACK inside a subtransaction, this would all need to be
+rethought ... but I'm unconvinced that such a thing could be logically
+consistent at all.)
+
+For further consistency, also check IsSubTransaction() in
+SPI_inside_nonatomic_context.  That does not matter for its
+one present-day caller StartTransaction, which can't be reached
+inside a subtransaction.  But if any other callers ever arise,
+they'd presumably want this definition.
+
+Per bug #18656 from Alexander Alehin.  Back-patch to all
+supported branches, like previous fixes in this area.
+
+Discussion: https://postgr.es/m/18656-cade1780866ef66c@postgresql.org_|_
