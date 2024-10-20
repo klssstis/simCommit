@@ -21986,4 +21986,30 @@ they'd presumably want this definition.
 Per bug #18656 from Alexander Alehin.  Back-patch to all
 supported branches, like previous fixes in this area.
 
-Discussion: https://postgr.es/m/18656-cade1780866ef66c@postgresql.org_|_
+Discussion: https://postgr.es/m/18656-cade1780866ef66c@postgresql.org_|_SQL/JSON: Fix some oversights in commit b6e1157e7
+
+The decision in b6e1157e7 to ignore raw_expr when evaluating a
+JsonValueExpr was incorrect.  While its value is not ultimately
+used (since formatted_expr's value is), failing to initialize it
+can lead to problems, for instance,  when the expression tree in
+raw_expr contains Aggref nodes, which must be initialized to
+ensure the parent Agg node works correctly.
+
+Also, optimize eval_const_expressions_mutator()'s handling of
+JsonValueExpr a bit.  Currently, when formatted_expr cannot be folded
+into a constant, we end up processing it twice -- once directly in
+eval_const_expressions_mutator() and again recursively via
+ece_generic_processing().  This recursive processing is required to
+handle raw_expr. To avoid the redundant processing of formatted_expr,
+we now  process raw_expr directly in eval_const_expressions_mutator().
+
+Finally, update the comment of JsonValueExpr to describe the roles of
+raw_expr and formatted_expr more clearly.
+
+Bug: #18657
+Reported-by: Alexander Lakhin <exclusion@gmail.com>
+Diagnosed-by: Fabio R. Sluzala <fabio3rs@gmail.com>
+Diagnosed-by: Tender Wang <tndrwang@gmail.com>
+Reviewed-by: Tom Lane <tgl@sss.pgh.pa.us>
+Discussion: https://postgr.es/m/18657-1b90ccce2b16bdb8@postgresql.org
+Backpatch-through: 16_|_
