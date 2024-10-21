@@ -22012,4 +22012,18 @@ Diagnosed-by: Fabio R. Sluzala <fabio3rs@gmail.com>
 Diagnosed-by: Tender Wang <tndrwang@gmail.com>
 Reviewed-by: Tom Lane <tgl@sss.pgh.pa.us>
 Discussion: https://postgr.es/m/18657-1b90ccce2b16bdb8@postgresql.org
-Backpatch-through: 16_|_
+Backpatch-through: 16_|_Fix race condition in committing a serializable transaction
+
+The finished transaction list can contain XIDs that are older than the
+serializable global xmin. It's a short-lived state;
+ClearOldPredicateLocks() removes any such transactions from the list,
+and it's called whenever the global xmin advances. But if another
+backend calls SummarizeOldestCommittedSxact() in that window, it will
+call SerialAdd() on an XID that's older than the global xmin, or if
+there are no more transactions running, when global xmin is
+invalid. That trips the assertion in SerialAdd().
+
+Fixes bug #18658 reported by Andrew Bille. Thanks to Alexander Lakhin
+for analysis. Backpatch to all versions.
+
+Discussion: https://www.postgresql.org/message-id/18658-7dab125ec688c70b%40postgresql.org_|_
