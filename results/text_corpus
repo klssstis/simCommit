@@ -22026,4 +22026,17 @@ invalid. That trips the assertion in SerialAdd().
 Fixes bug #18658 reported by Andrew Bille. Thanks to Alexander Lakhin
 for analysis. Backpatch to all versions.
 
-Discussion: https://www.postgresql.org/message-id/18658-7dab125ec688c70b%40postgresql.org_|_
+Discussion: https://www.postgresql.org/message-id/18658-7dab125ec688c70b%40postgresql.org_|_Fix wrong assertion and poor error messages in "COPY (query) TO".
+
+If the query is rewritten into a NOTIFY command by a DO INSTEAD
+rule, we'd get an assertion failure, or in non-assert builds
+issue a rather confusing error message.  Improve that.
+
+Also fix a longstanding grammar mistake in a nearby error message.
+
+Per bug #18664 from Alexander Lakhin.  Back-patch to all supported
+branches.
+
+Tender Wang and Tom Lane
+
+Discussion: https://postgr.es/m/18664-ffd0ebc2386598df@postgresql.org_|_
