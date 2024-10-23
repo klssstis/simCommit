@@ -22039,4 +22039,149 @@ branches.
 
 Tender Wang and Tom Lane
 
-Discussion: https://postgr.es/m/18664-ffd0ebc2386598df@postgresql.org_|_
+Discussion: https://postgr.es/m/18664-ffd0ebc2386598df@postgresql.org_|_ecpg: Fix out-of-bound read in DecodeDateTime()
+
+It was possible for the code to read out-of-bound data from the
+"day_tab" table with some crafted input data.  Let's treat these as
+invalid input as the month number is incorrect.
+
+A test is added to test this case with a check on the errno returned by
+the decoding routine.  A test close to the new one added in this commit
+was testing for a failure, but did not look at the errno generated, so
+let's use this commit to also change it, adding a check on the errno
+returned by DecodeDateTime().
+
+Like the other test scripts, dt_test should likely be expanded to
+include more checks based on the errnos generated in these code paths.
+This is left as future work.
+
+This issue exists since 2e6f97560a83, so backpatch all the way down.
+
+Reported-by: Pavel Nekrasov
+Author: Bruce Momjian, Pavel Nekrasov
+Discussion: https://postgr.es/m/18614-6bbe00117352309e@postgresql.org
+Backpatch-through: 12_|_Restructure foreign key handling code for ATTACH/DETACH
+
+... to fix bugs when the referenced table is partitioned.
+
+The catalog representation we chose for foreign keys connecting
+partitioned tables (in commit f56f8f8da6af) is inconvenient, in the
+sense that a standalone table has a different way to represent the
+constraint when referencing a partitioned table, than when the same
+table becomes a partition (and vice versa).  Because of this, we need to
+create additional catalog rows on detach (pg_constraint and pg_trigger),
+and remove them on attach.  We were doing some of those things, but not
+all of them, leading to missing catalog rows in certain cases.
+
+The worst problem seems to be that we are missing action triggers after
+detaching a partition, which means that you could update/delete rows
+from the referenced partitioned table that still had referencing rows on
+that table, the server failing to throw the required errors.
+
+!!!
+Note that this means existing databases with FKs that reference
+partitioned tables might have rows that break relational integrity, on
+tables that were once partitions on the referencing side of the FK.
+
+Another possible problem is that trying to reattach a table
+that had been detached would fail indicating that internal triggers
+cannot be found, which from the user's point of view is nonsensical.
+
+In branches 15 and above, we fix this by creating a new helper function
+addFkConstraint() which is in charge of creating a standalone
+pg_constraint row, and repurposing addFkRecurseReferencing() and
+addFkRecurseReferenced() so that they're only the recursive routine for
+each side of the FK, and they call addFkConstraint() to create
+pg_constraint at each partitioning level and add the necessary triggers.
+These new routines can be used during partition creation, partition
+attach and detach, and foreign key creation.  This reduces redundant
+code and simplifies the flow.
+
+In branches 14 and 13, we have a much simpler fix that consists on
+simply removing the constraint on detach.  The reason is that those
+branches are missing commit f4566345cf40, which reworked the way this
+works in a way that we didn't consider back-patchable at the time.
+
+We opted to leave branch 12 alone, because it's different from branch 13
+enough that the fix doesn't apply; and because it is going in EOL mode
+very soon, patching it now might be worse since there's no way to undo
+the damage if it goes wrong.
+
+Existing databases might need to be repaired.
+
+In the future we might want to rethink the catalog representation to
+avoid this problem, but for now the code seems to do what's required to
+make the constraints operate correctly.
+
+Co-authored-by: Jehan-Guillaume de Rorthais <jgdr@dalibo.com>
+Co-authored-by: Tender Wang <tndrwang@gmail.com>
+Co-authored-by: Alvaro Herrera <alvherre@alvh.no-ip.org>
+Reported-by: Guillaume Lelarge <guillaume@lelarge.info>
+Reported-by: Jehan-Guillaume de Rorthais <jgdr@dalibo.com>
+Reported-by: Thomas Baehler (SBB CFF FFS) <thomas.baehler2@sbb.ch>
+Discussion: https://postgr.es/m/20230420144344.40744130@karst
+Discussion: https://postgr.es/m/20230705233028.2f554f73@karst
+Discussion: https://postgr.es/m/GVAP278MB02787E7134FD691861635A8BC9032@GVAP278MB0278.CHEP278.PROD.OUTLOOK.COM
+Discussion: https://postgr.es/m/18541-628a61bc267cd2d3@postgresql.org_|_Restructure foreign key handling code for ATTACH/DETACH
+
+... to fix bugs when the referenced table is partitioned.
+
+The catalog representation we chose for foreign keys connecting
+partitioned tables (in commit f56f8f8da6af) is inconvenient, in the
+sense that a standalone table has a different way to represent the
+constraint when referencing a partitioned table, than when the same
+table becomes a partition (and vice versa).  Because of this, we need to
+create additional catalog rows on detach (pg_constraint and pg_trigger),
+and remove them on attach.  We were doing some of those things, but not
+all of them, leading to missing catalog rows in certain cases.
+
+The worst problem seems to be that we are missing action triggers after
+detaching a partition, which means that you could update/delete rows
+from the referenced partitioned table that still had referencing rows on
+that table, the server failing to throw the required errors.
+
+!!!
+Note that this means existing databases with FKs that reference
+partitioned tables might have rows that break relational integrity, on
+tables that were once partitions on the referencing side of the FK.
+
+Another possible problem is that trying to reattach a table
+that had been detached would fail indicating that internal triggers
+cannot be found, which from the user's point of view is nonsensical.
+
+In branches 15 and above, we fix this by creating a new helper function
+addFkConstraint() which is in charge of creating a standalone
+pg_constraint row, and repurposing addFkRecurseReferencing() and
+addFkRecurseReferenced() so that they're only the recursive routine for
+each side of the FK, and they call addFkConstraint() to create
+pg_constraint at each partitioning level and add the necessary triggers.
+These new routines can be used during partition creation, partition
+attach and detach, and foreign key creation.  This reduces redundant
+code and simplifies the flow.
+
+In branches 14 and 13, we have a much simpler fix that consists on
+simply removing the constraint on detach.  The reason is that those
+branches are missing commit f4566345cf40, which reworked the way this
+works in a way that we didn't consider back-patchable at the time.
+
+We opted to leave branch 12 alone, because it's different from branch 13
+enough that the fix doesn't apply; and because it is going in EOL mode
+very soon, patching it now might be worse since there's no way to undo
+the damage if it goes wrong.
+
+Existing databases might need to be repaired.
+
+In the future we might want to rethink the catalog representation to
+avoid this problem, but for now the code seems to do what's required to
+make the constraints operate correctly.
+
+Co-authored-by: Jehan-Guillaume de Rorthais <jgdr@dalibo.com>
+Co-authored-by: Tender Wang <tndrwang@gmail.com>
+Co-authored-by: Alvaro Herrera <alvherre@alvh.no-ip.org>
+Reported-by: Guillaume Lelarge <guillaume@lelarge.info>
+Reported-by: Jehan-Guillaume de Rorthais <jgdr@dalibo.com>
+Reported-by: Thomas Baehler (SBB CFF FFS) <thomas.baehler2@sbb.ch>
+Discussion: https://postgr.es/m/20230420144344.40744130@karst
+Discussion: https://postgr.es/m/20230705233028.2f554f73@karst
+Discussion: https://postgr.es/m/GVAP278MB02787E7134FD691861635A8BC9032@GVAP278MB0278.CHEP278.PROD.OUTLOOK.COM
+Discussion: https://postgr.es/m/18541-628a61bc267cd2d3@postgresql.org_|_
