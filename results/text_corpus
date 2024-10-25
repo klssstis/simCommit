@@ -22184,4 +22184,30 @@ Reported-by: Thomas Baehler (SBB CFF FFS) <thomas.baehler2@sbb.ch>
 Discussion: https://postgr.es/m/20230420144344.40744130@karst
 Discussion: https://postgr.es/m/20230705233028.2f554f73@karst
 Discussion: https://postgr.es/m/GVAP278MB02787E7134FD691861635A8BC9032@GVAP278MB0278.CHEP278.PROD.OUTLOOK.COM
-Discussion: https://postgr.es/m/18541-628a61bc267cd2d3@postgresql.org_|_
+Discussion: https://postgr.es/m/18541-628a61bc267cd2d3@postgresql.org_|_Doc: Add a caution in alter publication.
+
+Clarify that altering the 'publish_via_partition_root' option can lead to
+data loss or duplication when a partition root table is specified as the
+replication target.
+
+Reported-by: Maxim Boguk
+Author: Hayato Kuroda
+Reviewed-by: Amit Kapila, Peter Smith, Vignesh C
+Discussion: https://postgr.es/m/18644-6866bbd22178ee16@postgresql.org_|_Fix parallel worker tracking of new catalog relfilenumbers.
+
+Reunite RestorePendingSyncs() with RestoreRelationMap().  If
+RelationInitPhysicalAddr() ran after RestoreRelationMap() but before
+RestorePendingSyncs(), the relcache entry could cause RelationNeedsWAL()
+to return true erroneously.  Trouble required commands of the current
+transaction to include REINDEX or CLUSTER of a system catalog.  The
+parallel leader correctly derived RelationNeedsWAL()==false from the new
+relfilenumber, but the worker saw RelationNeedsWAL()==true.  Worker
+MarkBufferDirtyHint() then wrote unwanted WAL.  Recovery of that
+unwanted WAL could lose tuples like the system could before commit
+c6b92041d38512a4176ed76ad06f713d2e6c01a8 introduced this tracking.
+RestorePendingSyncs() and RestoreRelationMap() were adjacent till commit
+126ec0bc76d044d3a9eb86538b61242bf7da6db4, so no back-patch for now.
+
+Reviewed by Tom Lane.
+
+Discussion: https://postgr.es/m/20241019232815.c6.nmisch@google.com_|_
