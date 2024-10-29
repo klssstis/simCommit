@@ -22210,4 +22210,22 @@ RestorePendingSyncs() and RestoreRelationMap() were adjacent till commit
 
 Reviewed by Tom Lane.
 
-Discussion: https://postgr.es/m/20241019232815.c6.nmisch@google.com_|_
+Discussion: https://postgr.es/m/20241019232815.c6.nmisch@google.com_|_Fix dependency of partitioned table and table AM with CREATE TABLE .. USING
+
+A pg_depend entry between a partitioned table and its table access
+method was missing when using CREATE TABLE .. USING with an unpinned
+access method.  DROP ACCESS METHOD could be used, while it should be
+blocked if CASCADE is not specified, even if there was a partitioned
+table that depends on the table access method.  pg_class.relam would
+then hold an orphaned OID value still pointing to the AM dropped.
+
+The problem is fixed by adding a dependency between the partitioned
+table and its table access method if set when the relation is created.
+A test checking the contents of pg_depend in this case is added.
+
+Issue introduced in 374c7a229042, that has added support for CREATE
+TABLE .. USING for partitioned tables.
+
+Reviewed-by: Alexander Lakhin
+Discussion: https://postgr.es/m/18674-1ef01eceec278fab@postgresql.org
+Backpatch-through: 17_|_
