@@ -22228,4 +22228,14 @@ TABLE .. USING for partitioned tables.
 
 Reviewed-by: Alexander Lakhin
 Discussion: https://postgr.es/m/18674-1ef01eceec278fab@postgresql.org
-Backpatch-through: 17_|_
+Backpatch-through: 17_|_Stabilize jsonb_path_query test case.
+
+An operation like '12:34:56'::time_tz takes the UTC offset from
+the prevailing time zone, which means that the results change
+across DST transitions.  One of the test cases added in ed055d249
+failed to consider this.
+
+Per report from Bernhard Wiedemann.  Back-patch to v17, as the
+test case was.
+
+Discussion: https://postgr.es/m/ba8e1bc0-8a99-45b7-8397-3f2e94415e03@suse.de_|_
