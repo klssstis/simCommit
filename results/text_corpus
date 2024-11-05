@@ -22238,4 +22238,25 @@ failed to consider this.
 Per report from Bernhard Wiedemann.  Back-patch to v17, as the
 test case was.
 
-Discussion: https://postgr.es/m/ba8e1bc0-8a99-45b7-8397-3f2e94415e03@suse.de_|_
+Discussion: https://postgr.es/m/ba8e1bc0-8a99-45b7-8397-3f2e94415e03@suse.de_|_pg_basebackup, pg_receivewal: fix failure to find password in ~/.pgpass.
+
+Sloppy refactoring in commit cca97ce6a caused these programs
+to pass dbname = NULL to libpq if there was no "--dbname" switch
+on the command line, where before "replication" would be passed.
+This didn't break things completely, because the source server doesn't
+care about the dbname specified for a physical replication connection.
+However, it did cause libpq to fail to match a ~/.pgpass entry that
+has "replication" in the dbname field.  Restore the previous behavior
+of passing "replication".
+
+Also, closer inspection shows that if you do specify a dbname
+in the connection string, that is what will be matched to ~/.pgpass,
+not "replication".  This was the pre-existing behavior so we should
+not change it, but the SGML docs were pretty misleading about it.
+Improve that.
+
+Per bug #18685 from Toshi Harada.  Back-patch to v17 where the
+error crept in.
+
+Discussion: https://postgr.es/m/18685-fee2dd142b9688f1@postgresql.org
+Discussion: https://postgr.es/m/2702546.1730740456@sss.pgh.pa.us_|_
