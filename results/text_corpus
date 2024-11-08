@@ -22259,4 +22259,60 @@ Per bug #18685 from Toshi Harada.  Back-patch to v17 where the
 error crept in.
 
 Discussion: https://postgr.es/m/18685-fee2dd142b9688f1@postgresql.org
-Discussion: https://postgr.es/m/2702546.1730740456@sss.pgh.pa.us_|_
+Discussion: https://postgr.es/m/2702546.1730740456@sss.pgh.pa.us_|_Disallow partitionwise grouping when collations don't match
+
+If the collation of any grouping column doesn’t match the collation of
+the corresponding partition key, partitionwise grouping can yield
+incorrect results. For example, rows that would be grouped under the
+grouping collation may end up in different partitions under the
+partitioning collation. In such cases, full partitionwise grouping
+would produce results that differ from those without partitionwise
+grouping, so disallowed that.
+
+Partial partitionwise aggregation is still allowed, as the Finalize
+step reconciles partition-level aggregates with grouping requirements
+across all partitions, ensuring that the final output remains
+consistent.
+
+This commit also fixes group_by_has_partkey() by ensuring the
+RelabelType node is stripped from grouping expressions when matching
+them to partition key expressions to avoid false mismatches.
+
+Bug: #18568
+Reported-by: Webbo Han <1105066510@qq.com>
+Author: Webbo Han <1105066510@qq.com>
+Reviewed-by: Tender Wang <tndrwang@gmail.com>
+Reviewed-by: Aleksander Alekseev <aleksander@timescale.com>
+Reviewed-by: Jian He <jian.universality@gmail.com>
+Discussion: https://postgr.es/m/18568-2a9afb6b9f7e6ed3@postgresql.org
+Discussion: https://postgr.es/m/tencent_9D9103CDA420C07768349CC1DFF88465F90A@qq.com
+Discussion: https://postgr.es/m/CAHewXNno_HKiQ6PqyLYfuqDtwp7KKHZiH1J7Pqyz0nr+PS2Dwg@mail.gmail.com
+Backpatch-through: 12_|_Disallow partitionwise grouping when collations don't match
+
+If the collation of any grouping column doesn’t match the collation of
+the corresponding partition key, partitionwise grouping can yield
+incorrect results. For example, rows that would be grouped under the
+grouping collation may end up in different partitions under the
+partitioning collation. In such cases, full partitionwise grouping
+would produce results that differ from those without partitionwise
+grouping, so disallowed that.
+
+Partial partitionwise aggregation is still allowed, as the Finalize
+step reconciles partition-level aggregates with grouping requirements
+across all partitions, ensuring that the final output remains
+consistent.
+
+This commit also fixes group_by_has_partkey() by ensuring the
+RelabelType node is stripped from grouping expressions when matching
+them to partition key expressions to avoid false mismatches.
+
+Bug: #18568
+Reported-by: Webbo Han <1105066510@qq.com>
+Author: Webbo Han <1105066510@qq.com>
+Reviewed-by: Tender Wang <tndrwang@gmail.com>
+Reviewed-by: Aleksander Alekseev <aleksander@timescale.com>
+Reviewed-by: Jian He <jian.universality@gmail.com>
+Discussion: https://postgr.es/m/18568-2a9afb6b9f7e6ed3@postgresql.org
+Discussion: https://postgr.es/m/tencent_9D9103CDA420C07768349CC1DFF88465F90A@qq.com
+Discussion: https://postgr.es/m/CAHewXNno_HKiQ6PqyLYfuqDtwp7KKHZiH1J7Pqyz0nr+PS2Dwg@mail.gmail.com
+Backpatch-through: 12_|_
