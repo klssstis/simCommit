@@ -22315,4 +22315,25 @@ Reviewed-by: Jian He <jian.universality@gmail.com>
 Discussion: https://postgr.es/m/18568-2a9afb6b9f7e6ed3@postgresql.org
 Discussion: https://postgr.es/m/tencent_9D9103CDA420C07768349CC1DFF88465F90A@qq.com
 Discussion: https://postgr.es/m/CAHewXNno_HKiQ6PqyLYfuqDtwp7KKHZiH1J7Pqyz0nr+PS2Dwg@mail.gmail.com
-Backpatch-through: 12_|_
+Backpatch-through: 12_|_Improve fix for not entering parallel mode when holding interrupts.
+
+Commit ac04aa84a put the shutoff for this into the planner, which is
+not ideal because it doesn't prevent us from re-using a previously
+made parallel plan.  Revert the planner change and instead put the
+shutoff into InitializeParallelDSM, modeling it on the existing code
+there for recovering from failure to allocate a DSM segment.
+
+However, that code path is mostly untested, and testing a bit harder
+showed there's at least one bug: ExecHashJoinReInitializeDSM is not
+prepared for us to have skipped doing parallel DSM setup.  I also
+thought the Assert in ReinitializeParallelWorkers is pretty
+ill-advised, and replaced it with a silent Min() operation.
+
+The existing test case added by ac04aa84a serves fine to test this
+version of the fix, so no change needed there.
+
+Patch by me, but thanks to Noah Misch for the core idea that we
+could shut off worker creation when !INTERRUPTS_CAN_BE_PROCESSED.
+Back-patch to v12, as ac04aa84a was.
+
+Discussion: https://postgr.es/m/CAC-SaSzHUKT=vZJ8MPxYdC_URPfax+yoA1hKTcF4ROz_Q6z0_Q@mail.gmail.com_|_
