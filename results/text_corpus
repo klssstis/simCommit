@@ -22336,4 +22336,15 @@ Patch by me, but thanks to Noah Misch for the core idea that we
 could shut off worker creation when !INTERRUPTS_CAN_BE_PROCESSED.
 Back-patch to v12, as ac04aa84a was.
 
-Discussion: https://postgr.es/m/CAC-SaSzHUKT=vZJ8MPxYdC_URPfax+yoA1hKTcF4ROz_Q6z0_Q@mail.gmail.com_|_
+Discussion: https://postgr.es/m/CAC-SaSzHUKT=vZJ8MPxYdC_URPfax+yoA1hKTcF4ROz_Q6z0_Q@mail.gmail.com_|_Fix arrays comparison in CompareOpclassOptions()
+
+The current code calls array_eq() and does not provide FmgrInfo.  This commit
+provides initialization of FmgrInfo and uses C collation as the safe option
+for text comparison because we don't know anything about the semantics of
+opclass options.
+
+Backpatch to 13, where opclass options were introduced.
+
+Reported-by: Nicolas Maus
+Discussion: https://postgr.es/m/18692-72ea398df3ec6712%40postgresql.org
+Backpatch-through: 13_|_
