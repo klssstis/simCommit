@@ -22347,4 +22347,69 @@ Backpatch to 13, where opclass options were introduced.
 
 Reported-by: Nicolas Maus
 Discussion: https://postgr.es/m/18692-72ea398df3ec6712%40postgresql.org
-Backpatch-through: 13_|_
+Backpatch-through: 13_|_Avoid deleting critical WAL segments during pg_rewind
+
+Previously, in unlucky cases, it was possible for pg_rewind to remove
+certain WAL segments from the rewound demoted primary.  In particular
+this happens if those files have been marked for archival (i.e., their
+.ready files were created) but not yet archived; the newly promoted node
+no longer has such files because of them having been recycled, but they
+are likely critical for recovery in the demoted node.  If pg_rewind
+removes them, recovery is not possible anymore.
+
+Fix this by maintaining a hash table of files in this situation in the
+scan that looks for a checkpoint, which the decide_file_actions phase
+can consult so that it knows to preserve them.
+
+Backpatch to 14.  The problem also exists in 13, but that branch was not
+blessed with commit eb00f1d4bf96, so this patch is difficult to apply
+there.  Users of older releases will just have to continue to be extra
+careful when rewinding.
+
+Co-authored-by: Полина Бунгина (Polina Bungina) <bungina@gmail.com>
+Co-authored-by: Alexander Kukushkin <cyberdemn@gmail.com>
+Reviewed-by: Kyotaro Horiguchi <horikyota.ntt@gmail.com>
+Reviewed-by: Atsushi Torikoshi <torikoshia@oss.nttdata.com>
+Discussion: https://postgr.es/m/CAAtGL4AhzmBRsEsaDdz7065T+k+BscNadfTqP1NcPmsqwA5HBw@mail.gmail.com_|_Fix race conditions with drop of reused pgstats entries
+
+This fixes a set of race conditions with cumulative statistics where a
+shared stats entry could be dropped while it should still be valid in
+the event when it is reused: an entry may refer to a different object
+but requires the same hash key.  This can happen with various stats
+kinds, like:
+- Replication slots that compute internally an index number, for
+different slot names.
+- Stats kinds that use an OID in the object key, where a wraparound
+causes the same key to be used if an OID is used for the same object.
+- As of PostgreSQL 18, custom pgstats kinds could also be an issue,
+depending on their implementation.
+
+This issue is fixed by introducing a counter called "generation" in the
+shared entries via PgStatShared_HashEntry, initialized at 0 when an
+entry is created and incremented when the same entry is reused, to avoid
+concurrent issues on drop because of other backends still holding a
+reference to it.  This "generation" is copied to the local copy that a
+backend holds when looking at an object, then cross-checked with the
+shared entry to make sure that the entry is not dropped even if its
+"refcount" justifies that if it has been reused.
+
+This problem could show up when a backend shuts down and needs to
+discard any entries it still holds, causing statistics to be removed
+when they should not, or even an assertion failure.  Another report
+involved a failure in a standby after an OID wraparound, where the
+startup process would FATAL on a "can only drop stats once", stopping
+recovery abruptly.  The buildfarm has been sporadically complaining
+about the problem, as well, but the window is hard to reach with the
+in-core tests.
+
+Note that the issue can be reproduced easily by adding a sleep before
+dshash_find() in pgstat_release_entry_ref() to enlarge the problematic
+window while repeating test_decoding's isolation test oldest_xmin a
+couple of times, for example, as pointed out by Alexander Lakhin.
+
+Reported-by: Alexander Lakhin, Peter Smith
+Author: Kyotaro Horiguchi, Michael Paquier
+Reviewed-by: Bertrand Drouvot
+Discussion: https://postgr.es/m/CAA4eK1KxuMVyAryz_Vk5yq3ejgKYcL6F45Hj9ZnMNBS-g+PuZg@mail.gmail.com
+Discussion: https://postgr.es/m/17947-b9554521ad963c9c@postgresql.org
+Backpatch-through: 15_|_
