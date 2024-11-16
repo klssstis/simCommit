@@ -22412,4 +22412,74 @@ Author: Kyotaro Horiguchi, Michael Paquier
 Reviewed-by: Bertrand Drouvot
 Discussion: https://postgr.es/m/CAA4eK1KxuMVyAryz_Vk5yq3ejgKYcL6F45Hj9ZnMNBS-g+PuZg@mail.gmail.com
 Discussion: https://postgr.es/m/17947-b9554521ad963c9c@postgresql.org
-Backpatch-through: 15_|_
+Backpatch-through: 15_|_Fix per-session activation of ALTER {ROLE|DATABASE} SET role.
+
+After commit 5a2fed911a85ed6d8a015a6bafe3a0d9a69334ae, the catalog state
+resulting from these commands ceased to affect sessions.  Restore the
+longstanding behavior, which is like beginning the session with a SET
+ROLE command.  If cherry-picking the CVE-2024-10978 fixes, default to
+including this, too.  (This fixes an unintended side effect of fixing
+CVE-2024-10978.)  Back-patch to v12, like that commit.  The release team
+decided to include v12, despite the original intent to halt v12 commits
+earlier this week.
+
+Tom Lane and Noah Misch.  Reported by Etienne LAFARGE.
+
+Discussion: https://postgr.es/m/CADOZwSb0UsEr4_UTFXC5k7=fyyK8uKXekucd+-uuGjJsGBfxgw@mail.gmail.com_|_Fix a possibility of logical replication slot's restart_lsn going backwards.
+
+Previously LogicalIncreaseRestartDecodingForSlot() accidentally
+accepted any LSN as the candidate_lsn and candidate_valid after the
+restart_lsn of the replication slot was updated, so it potentially
+caused the restart_lsn to move backwards.
+
+A scenario where this could happen in logical replication is: after a
+logical replication restart, based on previous candidate_lsn and
+candidate_valid values in memory, the restart_lsn advances upon
+receiving a subscriber acknowledgment. Then, logical decoding restarts
+from an older point, setting candidate_lsn and candidate_valid based
+on an old RUNNING_XACTS record. Subsequent subscriber acknowledgments
+then update the restart_lsn to an LSN older than the current value.
+
+In the reported case, after WAL files were removed by a checkpoint,
+the retreated restart_lsn prevented logical replication from
+restarting due to missing WAL segments.
+
+This change essentially modifies the 'if' condition to 'else if'
+condition within the function. The previous code had an asymmetry in
+this regard compared to LogicalIncreaseXminForSlot(), which does
+almost the same thing for different fields.
+
+The WAL removal issue was reported by Hubert Depesz Lubaczewski.
+
+Backpatch to all supported versions, since the bug exists since 9.4
+where logical decoding was introduced.
+
+Reviewed-by: Tomas Vondra, Ashutosh Bapat, Amit Kapila
+Discussion: https://postgr.es/m/Yz2hivgyjS1RfMKs%40depesz.com
+Discussion: https://postgr.es/m/85fff40e-148b-4e86-b921-b4b846289132%40vondra.me
+Backpatch-through: 13_|_Avoid assertion due to disconnected NFA sub-graphs in regex parsing.
+
+In commit 08c0d6ad6 which introduced "rainbow" arcs in regex NFAs,
+I didn't think terribly hard about what to do when creating the color
+complement of a rainbow arc.  Clearly, the complement cannot match any
+characters, and I took the easy way out by just not building any arcs
+at all in the complement arc set.  That mostly works, but Nikolay
+Shaplov found a case where it doesn't: if we decide to delete that
+sub-NFA later because it's inside a "{0}" quantifier, delsub()
+suffered an assertion failure.  That's because delsub() relies on
+the target sub-NFA being fully connected.  That was always true
+before, and the best fix seems to be to restore that property.
+Hence, invent a new arc type CANTMATCH that can be generated in
+place of an empty color complement, and drop it again later when we
+start NFA optimization.  (At that point we don't need to do delsub()
+any more, and besides there are other cases where NFA optimization can
+lead to disconnected subgraphs.)
+
+It appears that this bug has no consequences in a non-assert-enabled
+build: there will be some transiently leaked NFA states/arcs, but
+they'll get cleaned up eventually.  Still, we don't like assertion
+failures, so back-patch to v14 where rainbow arcs were introduced.
+
+Per bug #18708 from Nikolay Shaplov.
+
+Discussion: https://postgr.es/m/18708-f94f2599c9d2c005@postgresql.org_|_
