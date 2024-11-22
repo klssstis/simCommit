@@ -22482,4 +22482,83 @@ failures, so back-patch to v14 where rainbow arcs were introduced.
 
 Per bug #18708 from Nikolay Shaplov.
 
-Discussion: https://postgr.es/m/18708-f94f2599c9d2c005@postgresql.org_|_
+Discussion: https://postgr.es/m/18708-f94f2599c9d2c005@postgresql.org_|_Use auxv to check for CRC32 instructions on ARM.
+
+Previously we probed for CRC32 instructions by testing if they caused
+SIGILL.  Some have expressed doubts about that technique, the Linux
+documentation advises not to use it, and it's not exactly beautiful.
+Now that more operating systems expose CPU features to userspace via the
+ELF loader in approximately the same way, let's use that instead.
+
+This is expected to work on Linux, FreeBSD and recent OpenBSD.
+OpenBSD/ARM has not been tested and is not present in our build farm,
+but the API matches FreeBSD.
+
+On macOS, compilers use a more recent baseline ISA so the runtime test
+mechanism isn't reached.  (A similar situation is expected for
+Windows/ARM when that port lands.)
+
+On NetBSD, runtime feature probing is lost for armv8-a builds.  It looks
+potentially doable with sysctl following the example of the cpuctl
+program; patches are welcome.
+
+No back-patch for now, since we don't have any evidence of actual
+breakage from the previous technique.
+
+Suggested-by: Bastien Roucariès <rouca@debian.org>
+Discussion: https://postgr.es/m/4496616.iHFcN1HehY%40portable-bastien_|_jit: Use -mno-outline-atomics for bitcode on ARM.
+
+If the executable's .o files were produced by a compiler (probably gcc)
+not using -moutline-atomics, and the corresponding .bc files were
+produced by clang using -moutline-atomics (probably by default), then
+the generated bitcode functions would have the target attribute
+"+outline-atomics", and could fail at runtime when inlined.  If the
+target ISA at bitcode generation time was armv8-a (the most conservative
+aarch64 target, no LSE), then LLVM IR atomic instructions would generate
+calls to functions in libgcc.a or libclang_rt.*.a that switch between
+LL/SC and faster LSE instructions depending on a runtime AT_HWCAP check.
+Since the corresponding .o files didn't need those functions, they
+wouldn't have been included in the executable, and resolution would
+fail.
+
+At least Debian and Ubuntu are known to ship gcc and clang compilers
+that target armv8-a but differ on the use of outline atomics by default.
+
+Fix, by suppressing the outline atomics attribute in bitcode explicitly.
+Inline LL/SC instructions will be generated for atomic operations in
+bitcode built for armv8-a.  Only configure scripts are adjusted for now,
+because the meson build system doesn't generate bitcode yet.
+
+This doesn't seem to be a new phenomenon, so real cases of functions
+using atomics that are inlined by JIT must be rare in the wild given how
+long it took for a bug report to arrive.  The reported case could be
+reduced to:
+
+postgres=# set jit_inline_above_cost = 0;
+SET
+postgres=# set jit_above_cost = 0;
+SET
+postgres=# select pg_last_wal_receive_lsn();
+WARNING:  failed to resolve name __aarch64_swp4_acq_rel
+FATAL:  fatal llvm error: Program used external function
+'__aarch64_swp4_acq_rel' which could not be resolved!
+
+The change doesn't affect non-ARM systems or later target ISAs.
+
+Back-patch to all supported releases.
+
+Reported-by: Alexander Kozhemyakin <a.kozhemyakin@postgrespro.ru>
+Discussion: https://postgr.es/m/18610-37bf303f904fede3%40postgresql.org_|_Fix newly introduced 010_keep_recycled_wals.pl
+
+It failed to set the archive_command as it desired because of a syntax
+problem.  Oversight in commit 90bcc7c2db1d.
+
+This bug doesn't cause the test to fail, because the test only checks
+pg_rewind's output messages, not the actual outcome (and the outcome in
+both cases is that the file is kept, not deleted).  But in either case
+the message about the file being kept is there, so it's hard to get
+excited about doing much more.
+
+Reported-by: Antonin Houska <ah@cybertec.at>
+Author: Alexander Kukushkin <cyberdemn@gmail.com>
+Discussion: https://postgr.es/m/7822.1732167825@antos_|_
