@@ -22561,4 +22561,48 @@ excited about doing much more.
 
 Reported-by: Antonin Houska <ah@cybertec.at>
 Author: Alexander Kukushkin <cyberdemn@gmail.com>
-Discussion: https://postgr.es/m/7822.1732167825@antos_|_
+Discussion: https://postgr.es/m/7822.1732167825@antos_|_Assume that <stdbool.h> conforms to the C standard.
+
+Previously we checked "for <stdbool.h> that conforms to C99" using
+autoconf's AC_HEADER_STDBOOL macro.  We've required C99 since PostgreSQL
+12, so the test was redundant, and under C23 it was broken: autoconf
+2.69's implementation doesn't understand C23's new empty header (the
+macros it's looking for went away, replaced by language keywords).
+Later autoconf versions fixed that, but let's just remove the
+anachronistic test.
+
+HAVE_STDBOOL_H and HAVE__BOOL will no longer be defined, but they
+weren't directly tested in core or likely extensions (except in 11, see
+below).  PG_USE_STDBOOL (or USE_STDBOOL in 11 and 12) is still defined
+when sizeof(bool) is 1, which should be true on all modern systems.
+Otherwise we define our own bool type and values of size 1, which would
+fail to compile under C23 as revealed by the broken test.  (We'll
+probably clean that dead code up in master, but here we want a minimal
+back-patchable change.)
+
+This came to our attention when GCC 15 recently started using using C23
+by default and failed to compile the replacement code, as reported by
+Sam James and build farm animal alligator.
+
+Back-patch to all supported releases, and then two older versions that
+also know about <stdbool.h>, per the recently-out-of-support policy[1].
+12 requires C99 so it's much like the supported releases, but 11 only
+assumes C89 so it now uses AC_CHECK_HEADERS instead of the overly picky
+AC_HEADER_STDBOOL.  (I could find no discussion of which historical
+systems had <stdbool.h> but failed the conformance test; if they ever
+existed, they surely aren't relevant to that policy's goals.)
+
+[1] https://wiki.postgresql.org/wiki/Committing_checklist#Policies
+
+Reported-by: Sam James <sam@gentoo.org>
+Reviewed-by: Peter Eisentraut <peter@eisentraut.org> (master version)
+Reviewed-by: Tom Lane <tgl@sss.pgh.pa.us> (approach)
+Discussion: https://www.postgresql.org/message-id/flat/87o72eo9iu.fsf%40gentoo.org_|_Test "options=-crole=" and "ALTER DATABASE SET role".
+
+Commit 7b88529f4363994450bd4cd3c172006a8a77e222 fixed a regression
+spanning these features, but it didn't test them.  It did test code
+paths sufficient for their present implementations, so no back-patch.
+
+Reported by Matthew Woodcraft.
+
+Discussion: https://postgr.es/m/87iksnsbhx.fsf@golux.woodcraft.me.uk_|_
