@@ -22605,4 +22605,72 @@ paths sufficient for their present implementations, so no back-patch.
 
 Reported by Matthew Woodcraft.
 
-Discussion: https://postgr.es/m/87iksnsbhx.fsf@golux.woodcraft.me.uk_|_
+Discussion: https://postgr.es/m/87iksnsbhx.fsf@golux.woodcraft.me.uk_|_Fix NULLIF()'s handling of read-write expanded objects.
+
+If passed a read-write expanded object pointer, the EEOP_NULLIF
+code would hand that same pointer to the equality function
+and then (unless equality was reported) also return the same
+pointer as its value.  This is no good, because a function that
+receives a read-write expanded object pointer is fully entitled
+to scribble on or even delete the object, thus corrupting the
+NULLIF output.  (This problem is likely unobservable with the
+equality functions provided in core Postgres, but it's easy to
+demonstrate with one coded in plpgsql.)
+
+To fix, make sure the pointer passed to the equality function
+is read-only.  We can still return the original read-write
+pointer as the NULLIF result, allowing optimization of later
+operations.
+
+Per bug #18722 from Alexander Lakhin.  This has been wrong
+since we invented expanded objects, so back-patch to all
+supported branches.
+
+Discussion: https://postgr.es/m/18722-fd9e645448cc78b4@postgresql.org_|_Avoid "you don't own a lock of type ExclusiveLock" in GRANT TABLESPACE.
+
+This WARNING appeared because SearchSysCacheLocked1() read
+cc_relisshared before catcache initialization, when the field is false
+unconditionally.  On the basis of reading false there, it constructed a
+locktag as though pg_tablespace weren't relisshared.  Only shared
+catalogs could be affected, and only GRANT TABLESPACE was affected in
+practice.  SearchSysCacheLocked1() callers use one other shared-relation
+syscache, DATABASEOID.  DATABASEOID is initialized by the end of
+CheckMyDatabase(), making the problem unreachable for pg_database.
+
+Back-patch to v13 (all supported versions).  This has no known impact
+before v16, where ExecGrant_common() first appeared.  Earlier branches
+avoid trouble by having a separate ExecGrant_Tablespace() that doesn't
+use LOCKTAG_TUPLE.  However, leaving this unfixed in v15 could ensnare a
+future back-patch of a SearchSysCacheLocked1() call.
+
+Reported by Aya Iwata.
+
+Discussion: https://postgr.es/m/OS7PR01MB11964507B5548245A7EE54E70EA212@OS7PR01MB11964.jpnprd01.prod.outlook.com_|_Update configure probes for CFLAGS needed for ARM CRC instructions.
+
+On ARM platforms where the baseline CPU target lacks CRC instructions,
+we need to supply a -march flag to persuade the compiler to compile
+such instructions.  It turns out that our existing choice of
+"-march=armv8-a+crc" has not worked for some time, because recent gcc
+will interpret that as selecting software floating point, and then
+will spit up if the platform requires hard-float ABI, as most do
+nowadays.  The end result was to silently fall back to software CRC,
+which isn't very desirable since in practice almost all currently
+produced ARM chips do have hardware CRC.
+
+We can fix this by using "-march=armv8-a+crc+simd" to enable the
+correct ABI choice.  (This has no impact on the code actually
+generated, since neither of the files we compile with this flag
+does any floating-point stuff, let alone SIMD.)  Keep the test for
+"-march=armv8-a+crc" since that's required for soft-float ABI,
+but try that second since most platforms we're likely to build on
+use hard-float.
+
+Since this isn't working as-intended on the last several years'
+worth of gcc releases, back-patch to all supported branches.
+
+Discussion: https://postgr.es/m/4496616.iHFcN1HehY@portable-bastien_|_Support runtime CRC feature probing on NetBSD/ARM using sysctl().
+
+Commit aac831caf left this as a to-do; here's code to do it.
+Like the previous patch, this is HEAD-only for now.
+
+Discussion: https://postgr.es/m/4496616.iHFcN1HehY@portable-bastien_|_
