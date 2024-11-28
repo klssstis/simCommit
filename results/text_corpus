@@ -22673,4 +22673,36 @@ Discussion: https://postgr.es/m/4496616.iHFcN1HehY@portable-bastien_|_Support ru
 Commit aac831caf left this as a to-do; here's code to do it.
 Like the previous patch, this is HEAD-only for now.
 
-Discussion: https://postgr.es/m/4496616.iHFcN1HehY@portable-bastien_|_
+Discussion: https://postgr.es/m/4496616.iHFcN1HehY@portable-bastien_|_Require sizeof(bool) == 1.
+
+The C standard says that sizeof(bool) is implementation-defined, but we
+know of no current systems where it is not 1.  The last known systems
+seem to have been Apple macOS/PowerPC 10.5 and Microsoft Visual C++ 4,
+both long defunct.
+
+PostgreSQL has always required sizeof(bool) == 1 for the definition of
+bool that it used, but previously it would define its own type if the
+system-provided bool had a different size.  That was liable to cause
+memory layout problems when interacting with system and third-party
+libraries on (by now hypothetical) computers with wider _Bool, and now
+C23 has introduced a new problem by making bool a built-in datatype
+(like C++), so the fallback code doesn't even compile.  We could
+probably work around that, but then we'd be writing new untested code
+for a computer that doesn't exist.
+
+Instead, delete the unreachable and C23-uncompilable fallback code, and
+let existing static assertions fail if the system-provided bool is too
+wide.  If we ever get a problem report from a real system, then it will
+be time to figure out what to do about it in a way that also works on
+modern compilers.
+
+Note on C++: Previously we avoided including <stdbool.h> or trying to
+define a new bool type in headers that might be included by C++ code.
+These days we might as well just include <stdbool.h> unconditionally:
+it should be visible to C++11 but do nothing, just as in C23.  We
+already include <stdint.h> without C++ guards in c.h, and that falls
+under the same C99-compatibility section of the C++11 standard as
+<stdbool.h>, so let's remove the guards here too.
+
+Reviewed-by: Tom Lane <tgl@sss.pgh.pa.us>
+Discussion: https://postgr.es/m/3198438.1731895163%40sss.pgh.pa.us_|_
