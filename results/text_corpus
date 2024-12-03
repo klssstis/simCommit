@@ -22705,4 +22705,24 @@ under the same C99-compatibility section of the C++11 standard as
 <stdbool.h>, so let's remove the guards here too.
 
 Reviewed-by: Tom Lane <tgl@sss.pgh.pa.us>
-Discussion: https://postgr.es/m/3198438.1731895163%40sss.pgh.pa.us_|_
+Discussion: https://postgr.es/m/3198438.1731895163%40sss.pgh.pa.us_|_RelationTruncate() must set DELAY_CHKPT_START.
+
+Previously, it set only DELAY_CHKPT_COMPLETE. That was important,
+because it meant that if the XLOG_SMGR_TRUNCATE record preceded a
+XLOG_CHECKPOINT_ONLINE record in the WAL, then the truncation would also
+happen on disk before the XLOG_CHECKPOINT_ONLINE record was
+written.
+
+However, it didn't guarantee that the sync request for the truncation
+was processed before the XLOG_CHECKPOINT_ONLINE record was written. By
+setting DELAY_CHKPT_START, we guarantee that if an XLOG_SMGR_TRUNCATE
+record is written to WAL before the redo pointer of a concurrent
+checkpoint, the sync request queued by that operation must be processed
+by that checkpoint, rather than being left for the following one.
+
+This is a refinement of commit 412ad7a5563.  Back-patch to all supported
+releases, like that commit.
+
+Author: Robert Haas <robertmhaas@gmail.com>
+Reported-by: Thomas Munro <thomas.munro@gmail.com>
+Discussion: https://postgr.es/m/CA%2BhUKG%2B-2rjGZC2kwqr2NMLBcEBp4uf59QT1advbWYF_uc%2B0Aw%40mail.gmail.com_|_
