@@ -22725,4 +22725,35 @@ releases, like that commit.
 
 Author: Robert Haas <robertmhaas@gmail.com>
 Reported-by: Thomas Munro <thomas.munro@gmail.com>
-Discussion: https://postgr.es/m/CA%2BhUKG%2B-2rjGZC2kwqr2NMLBcEBp4uf59QT1advbWYF_uc%2B0Aw%40mail.gmail.com_|_
+Discussion: https://postgr.es/m/CA%2BhUKG%2B-2rjGZC2kwqr2NMLBcEBp4uf59QT1advbWYF_uc%2B0Aw%40mail.gmail.com_|_Fix use-after-free in parallel_vacuum_reset_dead_items
+
+parallel_vacuum_reset_dead_items used a local variable to hold a
+pointer from the passed vacrel, purely as a shorthand. This pointer
+was later freed and a new allocation was made and stored to the
+struct. Then the local pointer was mistakenly referenced again.
+
+This apparently happened not to break anything since the freed chunk
+would have been put on the context's freelist, so it was accidentally
+the same pointer anyway, in which case the DSA handle was correctly
+updated. The minimal fix is to change two places so they access
+dead_items through the vacrel. This coding style is a maintenance
+hazard, so while at it get rid of most other similar usages, which
+were inconsistently used anyway.
+
+Analysis and patch by Vallimaharajan G, with further defensive coding
+by me
+
+Backpath to v17, when TidStore came in
+
+Discussion: https://postgr.es/m/1936493cc38.68cb2ef27266.7456585136086197135@zohocorp.com_|_Drop "Lock" suffix from LWLock wait event names
+
+Commit da952b415f44 unintentially reverted the SQL-visible part of
+commit 14a910109126, which breaks queries joining pg_wait_events with
+pg_stat_acivity.  Remove the suffix again.
+
+Backpatch to 17.
+
+Reported-by: Christophe Courtois <christophe.courtois@dalibo.com>
+Author: Bertrand Drouvot <bertranddrouvot.pg@gmail.com>
+Discussion: https://postgr.es/m/18728-450924477056a339%40postgresql.org
+Discussion: https://postgr.es/m/Z01w1+LihtRiS0Te@ip-10-97-1-34.eu-west-3.compute.internal_|_
