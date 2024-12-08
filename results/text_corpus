@@ -22756,4 +22756,79 @@ Backpatch to 17.
 Reported-by: Christophe Courtois <christophe.courtois@dalibo.com>
 Author: Bertrand Drouvot <bertranddrouvot.pg@gmail.com>
 Discussion: https://postgr.es/m/18728-450924477056a339%40postgresql.org
-Discussion: https://postgr.es/m/Z01w1+LihtRiS0Te@ip-10-97-1-34.eu-west-3.compute.internal_|_
+Discussion: https://postgr.es/m/Z01w1+LihtRiS0Te@ip-10-97-1-34.eu-west-3.compute.internal_|_Ensure that pg_amop/amproc entries depend on their lefttype/righttype.
+
+Usually an entry in pg_amop or pg_amproc does not need a dependency on
+its amoplefttype/amoprighttype/amproclefttype/amprocrighttype types,
+because there is an indirect dependency via the argument types of its
+referenced operator or procedure, or via the opclass it belongs to.
+However, for some support procedures in some index AMs, the argument
+types of the support procedure might not mention the column data type
+at all.  Also, the amop/amproc entry might be treated as "loose" in
+the opfamily, in which case it lacks a dependency on any particular
+opclass; or it might be a cross-type entry having a reference to a
+datatype that is not its opclass' opcintype.
+
+The upshot of all this is that there are cases where a datatype can
+be dropped while leaving behind amop/amproc entries that mention it,
+because there is no path in pg_depend showing that those entries
+depend on that type.  Such entries are harmless in normal activity,
+because they won't get used, but they cause problems for maintenance
+actions such as dropping the operator family.  They also cause pg_dump
+to produce bogus output.  The previous commit put a band-aid on the
+DROP OPERATOR FAMILY failure, but a real fix is needed.
+
+To fix, add pg_depend entries showing that a pg_amop/pg_amproc entry
+depends on its lefttype/righttype.  To avoid bloating pg_depend too
+much, skip this if the referenced operator or function has that type
+as an input type.  (I did not bother with considering the possible
+indirect dependency via the opclass' opcintype; at least in the
+reported case, that wouldn't help anyway.)
+
+Probably, the reason this has escaped notice for so long is that
+add-on datatypes and relevant opclasses/opfamilies are usually
+packaged as extensions nowadays, so that there's no way to drop
+a type without dropping the referencing opclasses/opfamilies too.
+Still, in the absence of pg_depend entries there's nothing that
+constrains DROP EXTENSION to drop the opfamily entries before the
+datatype, so it seems possible for a DROP failure to occur anyway.
+
+The specific case that was reported doesn't fail in v13, because
+v13 prefers to attach the support procedure to the opclass not the
+opfamily.  But it's surely possible to construct other edge cases
+that do fail in v13, so patch that too.
+
+Per report from Yoran Heling.  Back-patch to all supported branches.
+
+Discussion: https://postgr.es/m/Z1MVCOh1hprjK5Sf@gmai021_|_Make getObjectDescription robust against dangling amproc type links.
+
+Yoran Heling reported a case where a data type could be dropped
+while references to its OID remain behind in pg_amproc.  This
+causes getObjectDescription to fail, which blocks dropping the
+operator family (since our DROP code likes to construct descriptions
+of everything it's dropping).  The proper fix for this requires
+adding more pg_depend entries.  But to allow DROP to go through with
+already-corrupt catalogs, tweak getObjectDescription to print "???"
+for the type instead of failing when it processes such an entry.
+
+I changed the logic for pg_amop similarly, for consistency,
+although it is not known that the problem can manifest in pg_amop.
+
+Per report from Yoran Heling.  Back-patch to all supported
+branches (although the problem may be unreachable in v13).
+
+Discussion: https://postgr.es/m/Z1MVCOh1hprjK5Sf@gmai021_|_Fix is_digit labeling of to_timestamp's FFn format codes.
+
+These format codes produce or consume strings of digits, so they
+should be labeled with is_digit = true, but they were not.
+This has effect in only one place, where is_next_separator()
+is checked to see if the preceding format code should slurp up
+all the available digits.  Thus, with a format such as '...SSFF3'
+with remaining input '12345', the 'SS' code would consume all
+five digits (and then complain about seconds being out of range)
+when it should eat only two digits.
+
+Per report from Nick Davies.  This bug goes back to d589f9446
+where the FFn codes were introduced, so back-patch to v13.
+
+Discussion: https://postgr.es/m/AM8PR08MB6356AC979252CFEA78B56678B6312@AM8PR08MB6356.eurprd08.prod.outlook.com_|_
