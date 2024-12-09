@@ -22831,4 +22831,32 @@ when it should eat only two digits.
 Per report from Nick Davies.  This bug goes back to d589f9446
 where the FFn codes were introduced, so back-patch to v13.
 
-Discussion: https://postgr.es/m/AM8PR08MB6356AC979252CFEA78B56678B6312@AM8PR08MB6356.eurprd08.prod.outlook.com_|_
+Discussion: https://postgr.es/m/AM8PR08MB6356AC979252CFEA78B56678B6312@AM8PR08MB6356.eurprd08.prod.outlook.com_|_Fix possible crash during WindowAgg evaluation
+
+When short-circuiting WindowAgg node evaluation on the top-level
+WindowAgg node using quals on monotonic window functions, because the
+WindowAgg run condition can mean there's no need to evaluate subsequent
+window function results in the same partition once the run condition
+becomes false, it was possible that the executor would use stale results
+from the previous invocation of the window function in some cases.
+
+A fix for this was partially done by a5832722, but that commit only
+fixed the issue for non-top-level WindowAgg nodes.  I mistakenly thought
+that the top-level WindowAgg didn't have this issue, but Jayesh's example
+case clearly shows that's incorrect.  At the time, I also thought that
+this only affected 32-bit systems as all window functions which then
+supported run conditions returned BIGINT, however, that's wrong as
+ExecProject is still called and that could cause evaluation of any other
+window function belonging to the same WindowAgg node, one of which may
+return a byref type.
+
+The only queries affected by this are WindowAggs with a "Run Condition"
+which contains at least one window function with a byref result type,
+such as lead() or lag() on a byref column.  The window clause must also
+contain a PARTITION BY clause (without a PARTITION BY, execution of the
+WindowAgg stops immediately when the run condition becomes false and
+there's no risk of using the stale results).
+
+Reported-by: Jayesh Dehankar
+Discussion: https://postgr.es/m/193261e2c4d.3dd3cd7c1842.871636075166132237@zohocorp.com
+Backpatch-through: 15, where WindowAgg run conditions were added_|_
