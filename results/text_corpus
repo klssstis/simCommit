@@ -22859,4 +22859,25 @@ there's no risk of using the stale results).
 
 Reported-by: Jayesh Dehankar
 Discussion: https://postgr.es/m/193261e2c4d.3dd3cd7c1842.871636075166132237@zohocorp.com
-Backpatch-through: 15, where WindowAgg run conditions were added_|_
+Backpatch-through: 15, where WindowAgg run conditions were added_|_Fix various overflow hazards in date and timestamp functions.
+
+This commit makes use of the overflow-aware routines in int.h to
+fix a variety of reported overflow bugs in the date and timestamp
+code.  It seems unlikely that this fixes all such bugs in this
+area, but since the problems seem limited to cases that are far
+beyond any realistic usage, I'm not going to worry too much.  Note
+that for one bug, I've chosen to simply add a comment about the
+overflow hazard because fixing it would require quite a bit of code
+restructuring that doesn't seem worth the risk.
+
+Since this is a bug fix, it could be back-patched, but given the
+risk of conflicts with the new routines in int.h and the overall
+risk/reward ratio of this patch, I've opted not to do so for now.
+
+Fixes bug #18585 (except for the one case that's just commented).
+
+Reported-by: Alexander Lakhin
+Author: Matthew Kim, Nathan Bossart
+Reviewed-by: Joseph Koshakow, Jian He
+Discussion: https://postgr.es/m/31ad2cd1-db94-bdb3-f91a-65ffdb4bef95%40gmail.com
+Discussion: https://postgr.es/m/18585-db646741dd649abd%40postgresql.org_|_
