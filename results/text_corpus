@@ -22880,4 +22880,17 @@ Reported-by: Alexander Lakhin
 Author: Matthew Kim, Nathan Bossart
 Reviewed-by: Joseph Koshakow, Jian He
 Discussion: https://postgr.es/m/31ad2cd1-db94-bdb3-f91a-65ffdb4bef95%40gmail.com
-Discussion: https://postgr.es/m/18585-db646741dd649abd%40postgresql.org_|_
+Discussion: https://postgr.es/m/18585-db646741dd649abd%40postgresql.org_|_Revert "Don't truncate database and user names in startup packets."
+
+This reverts commit 562bee0fc13dc95710b8db6a48edad2f3d052f2e.
+
+We received a report from the field about this change in behavior,
+so it seems best to revert this commit and to add proper
+multibyte-aware truncation as a follow-up exercise.
+
+Fixes bug #18711.
+
+Reported-by: Adam Rauch
+Reviewed-by: Tom Lane, Bertrand Drouvot, Bruce Momjian, Thomas Munro
+Discussion: https://postgr.es/m/18711-7503ee3e449d2c47%40postgresql.org
+Backpatch-through: 17_|_
