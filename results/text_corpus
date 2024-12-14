@@ -22893,4 +22893,37 @@ Fixes bug #18711.
 Reported-by: Adam Rauch
 Reviewed-by: Tom Lane, Bertrand Drouvot, Bruce Momjian, Thomas Munro
 Discussion: https://postgr.es/m/18711-7503ee3e449d2c47%40postgresql.org
-Backpatch-through: 17_|_
+Backpatch-through: 17_|_Fix possible crash in pg_dump with identity sequences.
+
+If an owned sequence is considered interesting, force its owning
+table to be marked interesting too.  This ensures, in particular,
+that we'll fetch the owning table's column names so we have the
+data needed for ALTER TABLE ... ADD GENERATED.  Previously there were
+edge cases where pg_dump could get SIGSEGV due to not having filled in
+the column names.  (The known case is where the owning table has been
+made part of an extension while its identity sequence is not a member;
+but there may be others.)
+
+Also, if it's an identity sequence, force its dumped-components mask
+to exactly match the owning table: dump definition only if we're
+dumping the table's definition, dump data only if we're dumping the
+table's data, etc.  This generalizes the code introduced in commit
+b965f2617 that set the sequence's dump mask to NONE if the owning
+table's mask is NONE.  That's insufficient to prevent failures,
+because for example the table's mask might only request dumping ACLs,
+which would lead us to still emit ALTER TABLE ADD GENERATED even
+though we didn't create the table.  It seems better to treat an
+identity sequence as though it were an inseparable aspect of the
+table, matching the treatment used in the backend's dependency logic.
+Perhaps this policy needs additional refinement, but let's wait to
+see some field use-cases before changing it further.
+
+While here, add a comment in pg_dump.h warning against writing tests
+like "if (dobj->dump == DUMP_COMPONENT_NONE)", which was a bug in this
+case.  There is one other example in getPublicationNamespaces, which
+if it's not a bug is at least remarkably unclear and under-documented.
+Changing that requires a separate discussion, however.
+
+Per report from Artur Zakirov.  Back-patch to all supported branches.
+
+Discussion: https://postgr.es/m/CAKNkYnwXFBf136=u9UqUxFUVagevLQJ=zGd5BsLhCsatDvQsKQ@mail.gmail.com_|_
