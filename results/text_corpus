@@ -22926,4 +22926,37 @@ Changing that requires a separate discussion, however.
 
 Per report from Artur Zakirov.  Back-patch to all supported branches.
 
-Discussion: https://postgr.es/m/CAKNkYnwXFBf136=u9UqUxFUVagevLQJ=zGd5BsLhCsatDvQsKQ@mail.gmail.com_|_
+Discussion: https://postgr.es/m/CAKNkYnwXFBf136=u9UqUxFUVagevLQJ=zGd5BsLhCsatDvQsKQ@mail.gmail.com_|_Fix memory leak in pg_restore with zstd-compressed data.
+
+EndCompressorZstd() neglected to free everything.  This was
+most visible with a lot of large objects in the dump.
+
+Per report from Tomasz Szypowski.  Back-patch to v16
+where this code came in.
+
+Discussion: https://postgr.es/m/DU0PR04MB94193D038A128EF989F922D199042@DU0PR04MB9419.eurprd04.prod.outlook.com_|_Detect version mismatch in brin_page_items
+
+Commit dae761a87ed modified brin_page_items() to return the new "empty"
+flag for each BRIN range. But the new output parameter was added in the
+middle, which may cause crashes when using the new binary with old
+function definition.
+
+The ideal solution would be to introduce API versioning similar to what
+pg_stat_statements does, but it's too late for that as PG17 was already
+released (so we can't introduce a new extension version). We could do
+something similar in brin_page_items() by checking the number of output
+columns (and ignoring the new flag), but it doesn't seem very nice.
+
+Instead, simply error out and suggest updating the extension to the
+latest version. pageinspect is a superuser-only extension, and there's
+not much reason to run an older version. Moreover, there's a precedent
+for this approach in 691e8b2e18.
+
+Reported by Ľuboslav Špilák, investigation and patch by me. Backpatch to
+17, same as dae761a87ed.
+
+Reported-by: Ľuboslav Špilák
+Reviewed-by: Michael Paquier, Hayato Kuroda, Peter Geoghegan
+Backpatch-through: 17
+Discussion: https://postgr.es/m/VI1PR02MB63331C3D90E2104FD12399D38A5D2@VI1PR02MB6333.eurprd02.prod.outlook.com
+Discussion: https://postgr.es/m/flat/3385a58f-5484-49d0-b790-9a198a0bf236@vondra.me_|_
