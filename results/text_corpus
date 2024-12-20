@@ -22959,4 +22959,96 @@ Reported-by: Ľuboslav Špilák
 Reviewed-by: Michael Paquier, Hayato Kuroda, Peter Geoghegan
 Backpatch-through: 17
 Discussion: https://postgr.es/m/VI1PR02MB63331C3D90E2104FD12399D38A5D2@VI1PR02MB6333.eurprd02.prod.outlook.com
-Discussion: https://postgr.es/m/flat/3385a58f-5484-49d0-b790-9a198a0bf236@vondra.me_|_
+Discussion: https://postgr.es/m/flat/3385a58f-5484-49d0-b790-9a198a0bf236@vondra.me_|_Fix corruption when relation truncation fails.
+
+RelationTruncate() does three things, while holding an
+AccessExclusiveLock and preventing checkpoints:
+
+1. Logs the truncation.
+2. Drops buffers, even if they're dirty.
+3. Truncates some number of files.
+
+Step 2 could previously be canceled if it had to wait for I/O, and step
+3 could and still can fail in file APIs.  All orderings of these
+operations have data corruption hazards if interrupted, so we can't give
+up until the whole operation is done.  When dirty pages were discarded
+but the corresponding blocks were left on disk due to ERROR, old page
+versions could come back from disk, reviving deleted data (see
+pgsql-bugs #18146 and several like it).  When primary and standby were
+allowed to disagree on relation size, standbys could panic (see
+pgsql-bugs #18426) or revive data unknown to visibility management on
+the primary (theorized).
+
+Changes:
+
+ * WAL is now unconditionally flushed first
+ * smgrtruncate() is now called in a critical section, preventing
+   interrupts and causing PANIC on file API failure
+ * smgrtruncate() has a new parameter for existing fork sizes,
+   because it can't call smgrnblocks() itself inside a critical section
+
+The changes apply to RelationTruncate(), smgr_redo() and
+pg_truncate_visibility_map().  That last is also brought up to date with
+other evolutions of the truncation protocol.
+
+The VACUUM FileTruncate() failure mode had been discussed in older
+reports than the ones referenced below, with independent analysis from
+many people, but earlier theories on how to fix it were too complicated
+to back-patch.  The more recently invented cancellation bug was
+diagnosed by Alexander Lakhin.  Other corruption scenarios were spotted
+by me while iterating on this patch and earlier commit 75818b3a.
+
+Back-patch to all supported releases.
+
+Reviewed-by: Michael Paquier <michael@paquier.xyz>
+Reviewed-by: Robert Haas <robertmhaas@gmail.com>
+Reported-by: rootcause000@gmail.com
+Reported-by: Alexander Lakhin <exclusion@gmail.com>
+Discussion: https://postgr.es/m/18146-04e908c662113ad5%40postgresql.org
+Discussion: https://postgr.es/m/18426-2d18da6586f152d6%40postgresql.org_|_Fix corruption when relation truncation fails.
+
+RelationTruncate() does three things, while holding an
+AccessExclusiveLock and preventing checkpoints:
+
+1. Logs the truncation.
+2. Drops buffers, even if they're dirty.
+3. Truncates some number of files.
+
+Step 2 could previously be canceled if it had to wait for I/O, and step
+3 could and still can fail in file APIs.  All orderings of these
+operations have data corruption hazards if interrupted, so we can't give
+up until the whole operation is done.  When dirty pages were discarded
+but the corresponding blocks were left on disk due to ERROR, old page
+versions could come back from disk, reviving deleted data (see
+pgsql-bugs #18146 and several like it).  When primary and standby were
+allowed to disagree on relation size, standbys could panic (see
+pgsql-bugs #18426) or revive data unknown to visibility management on
+the primary (theorized).
+
+Changes:
+
+ * WAL is now unconditionally flushed first
+ * smgrtruncate() is now called in a critical section, preventing
+   interrupts and causing PANIC on file API failure
+ * smgrtruncate() has a new parameter for existing fork sizes,
+   because it can't call smgrnblocks() itself inside a critical section
+
+The changes apply to RelationTruncate(), smgr_redo() and
+pg_truncate_visibility_map().  That last is also brought up to date with
+other evolutions of the truncation protocol.
+
+The VACUUM FileTruncate() failure mode had been discussed in older
+reports than the ones referenced below, with independent analysis from
+many people, but earlier theories on how to fix it were too complicated
+to back-patch.  The more recently invented cancellation bug was
+diagnosed by Alexander Lakhin.  Other corruption scenarios were spotted
+by me while iterating on this patch and earlier commit 75818b3a.
+
+Back-patch to all supported releases.
+
+Reviewed-by: Michael Paquier <michael@paquier.xyz>
+Reviewed-by: Robert Haas <robertmhaas@gmail.com>
+Reported-by: rootcause000@gmail.com
+Reported-by: Alexander Lakhin <exclusion@gmail.com>
+Discussion: https://postgr.es/m/18146-04e908c662113ad5%40postgresql.org
+Discussion: https://postgr.es/m/18426-2d18da6586f152d6%40postgresql.org_|_
