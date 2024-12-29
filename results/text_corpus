@@ -23051,4 +23051,15 @@ Reviewed-by: Robert Haas <robertmhaas@gmail.com>
 Reported-by: rootcause000@gmail.com
 Reported-by: Alexander Lakhin <exclusion@gmail.com>
 Discussion: https://postgr.es/m/18146-04e908c662113ad5%40postgresql.org
-Discussion: https://postgr.es/m/18426-2d18da6586f152d6%40postgresql.org_|_
+Discussion: https://postgr.es/m/18426-2d18da6586f152d6%40postgresql.org_|_Fix overly large values/nulls arrays
+
+These arrays were sized with Natts_pg_trigger (19) when they should have
+been sized with Natts_pg_event_trigger (7).  We'd better fix this as
+it's clearly a mistake and it could become problematic if
+pg_event_trigger were to gain a dozen or so more columns in the future.
+
+No backpatch as there's no actual bug and the column count on those
+tables isn't going to change in released versions.
+
+Author: Xin Zhang <zhanghien@qq.com>
+Discussion: https://postgr.es/m/tencent_05AD0FB321A414EC3661204D2102AA6EF605@qq.com_|_
