@@ -23062,4 +23062,39 @@ No backpatch as there's no actual bug and the column count on those
 tables isn't going to change in released versions.
 
 Author: Xin Zhang <zhanghien@qq.com>
-Discussion: https://postgr.es/m/tencent_05AD0FB321A414EC3661204D2102AA6EF605@qq.com_|_
+Discussion: https://postgr.es/m/tencent_05AD0FB321A414EC3661204D2102AA6EF605@qq.com_|_Fix freeing a child join's SpecialJoinInfo
+
+In try_partitionwise_join, we try to break down the join between two
+partitioned relations into joins between matching partitions.  To
+achieve this, we iterate through each pair of partitions from the two
+joining relations and create child join relations for them.  To reduce
+memory accumulation during each iteration, one step we take is freeing
+the SpecialJoinInfos created for the child joins.
+
+A child join's SpecialJoinInfo is a copy of the parent join's
+SpecialJoinInfo, with some members being translated copies of their
+counterparts in the parent.  However, when freeing the bitmapset
+members in a child join's SpecialJoinInfo, we failed to check whether
+they were translated copies.  As a result, we inadvertently freed the
+members that were still in use by the parent SpecialJoinInfo, leading
+to crashes when those freed members were accessed.
+
+To fix, check if each member of the child join's SpecialJoinInfo is a
+translated copy and free it only if that's the case.  This requires
+passing the parent join's SpecialJoinInfo as a parameter to
+free_child_join_sjinfo.
+
+Back-patch to v17 where this bug crept in.
+
+Bug: #18806
+Reported-by: 孟令彬 <m_lingbin@126.com>
+Diagnosed-by: Tender Wang <tndrwang@gmail.com>
+Author: Richard Guo <guofenglinux@gmail.com>
+Reviewed-by: Amit Langote <amitlangote09@gmail.com>
+Reviewed-by: Ashutosh Bapat <ashutosh.bapat.oss@gmail.com>
+Discussion: https://postgr.es/m/18806-d70b0c9fdf63dcbf@postgresql.org
+Backpatch-through: 17_|_doc: add example of sign mismatch with POSIX/ISO-8601 time zones
+
+Author: Laurenz Albe
+
+Discussion: https://postgr.es/m/eb4d1e15c6822c1937be1491118500dd9201492f.camel@cybertec.at_|_
