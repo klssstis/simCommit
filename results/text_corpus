@@ -23097,4 +23097,70 @@ Backpatch-through: 17_|_doc: add example of sign mismatch with POSIX/ISO-8601 ti
 
 Author: Laurenz Albe
 
-Discussion: https://postgr.es/m/eb4d1e15c6822c1937be1491118500dd9201492f.camel@cybertec.at_|_
+Discussion: https://postgr.es/m/eb4d1e15c6822c1937be1491118500dd9201492f.camel@cybertec.at_|_Assert that ExecOpenIndices and ExecCloseIndices are not repeated.
+
+These functions should be called at most once per ResultRelInfo;
+it's wasteful to do otherwise, and certainly the pattern of
+opening twice and then closing twice is a bad idea.  Moreover,
+aminsertcleanup functions might not be prepared to be called twice,
+as the just-hardened code in BRIN demonstrates.
+
+This amounts to an API change, since such coding patterns were
+safe even if wasteful before v17.  Hence, apply to HEAD only.
+(Extension code violating this new rule faces some risk in v17,
+but we just fixed brininsertcleanup and there are probably few
+other aminsertcleanup functions as yet.  So the odds of breaking
+usable code seem higher than the odds of doing something useful
+with a back-patch.)
+
+Bug: #18815
+Reported-by: Sergey Belyashov <sergey.belyashov@gmail.com>
+Discussion: https://postgr.es/m/18815-2a0407cc7f40b327@postgresql.org_|_Fix crash in brininsertcleanup during logical replication.
+
+Logical replication crashes if the subscriber's partitioned table
+has a BRIN index.  There are two independently blamable causes,
+and this patch fixes both:
+
+1. brininsertcleanup fails if called twice for the same IndexInfo,
+because it half-destroys its BrinInsertState but leaves it still
+linked from ii_AmCache.  brininsert would also fail in that state,
+so it's pretty hard to see any advantage to this coding.  Fully
+remove the BrinInsertState, instead, so that a new brininsert
+call would create a new cache.
+
+2. A logical replication subscriber sometimes does ExecOpenIndices
+twice on the same ResultRelInfo, followed by doing ExecCloseIndices
+twice; the second call reaches the brininsertcleanup bug.  Quite
+aside from tickling unexpected cases in aminsertcleanup methods,
+this seems very wasteful, because the IndexInfos built in the
+first ExecOpenIndices call are just lost during the second call,
+and have to be rebuilt at possibly-nontrivial cost.  We should
+establish a coding rule that you don't do that.
+
+The problematic coding is that when the target table is partitioned,
+apply_handle_tuple_routing calls ExecFindPartition which does
+ExecOpenIndices (and expects that ExecCleanupTupleRouting will
+close the indexes again).  Using the ResultRelInfo made by
+ExecFindPartition, it calls apply_handle_delete_internal or
+apply_handle_insert_internal, both of which think they need to do
+ExecOpenIndices/ExecCloseIndices for themselves.  They do in the main
+non-partitioned code paths, but not here.  The simplest fix is to pull
+their ExecOpenIndices/ExecCloseIndices calls out and put them in the
+call sites for the non-partitioned cases.  (We could have refactored
+apply_handle_update_internal similarly, but I did not do so today
+because there's no bug there: the partitioned code path doesn't
+call it.)
+
+Also, remove the always-duplicative open/close calls within
+apply_handle_tuple_routing itself.
+
+Since brininsertcleanup and indeed the whole aminsertcleanup mechanism
+are new in v17, there's no observable bug in older branches.  A case
+could be made for trying to avoid these duplicative open/close calls
+in the older branches, but for now it seems not worth the trouble and
+risk of new bugs.
+
+Bug: #18815
+Reported-by: Sergey Belyashov <sergey.belyashov@gmail.com>
+Discussion: https://postgr.es/m/18815-2a0407cc7f40b327@postgresql.org
+Backpatch-through: 17_|_
