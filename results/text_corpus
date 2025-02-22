@@ -23163,4 +23163,70 @@ risk of new bugs.
 Bug: #18815
 Reported-by: Sergey Belyashov <sergey.belyashov@gmail.com>
 Discussion: https://postgr.es/m/18815-2a0407cc7f40b327@postgresql.org
-Backpatch-through: 17_|_
+Backpatch-through: 17_|_Avoid race condition between "GRANT role" and "DROP ROLE".
+
+Concurrently dropping either the granted role or the grantee
+does not stop GRANT from completing, instead resulting in a
+dangling role reference in pg_auth_members.  That's relatively
+harmless in the short run, but inconsistent catalog entries
+are not a good thing.
+
+This patch solves the problem by adding the granted and grantee
+roles as explicit shared dependencies of the pg_auth_members entry.
+That's a bit indirect, but it works because the pg_shdepend code
+applies the necessary locking and rechecking.
+
+Commit 6566133c5 previously established similar handling for
+the grantor column of pg_auth_members; it's not clear why it
+didn't cover the other two role OID columns.
+
+A side-effect of this approach is that DROP OWNED BY will now drop
+pg_auth_members entries that mention the target role as either the
+granted or grantee role.  That's clearly appropriate for the
+grantee, since we'll drop its other privileges too.  It doesn't
+seem too far out of line for the granted role, since we're
+presumably about to drop it and besides we're removing all reasons
+why it'd matter to be a member of it.  (One could argue that this
+makes DropRole's code to auto-drop pg_auth_members entries
+unnecessary, but I chose to leave it in place since perhaps some
+people's workflows expect that to work without a DROP OWNED BY.)
+
+Note to patch readers: CreateRole's first CommandCounterIncrement
+call is now unconditional, because this change creates another
+case in which it's needed, and it seemed to be more trouble than
+it's worth to preserve that micro-optimization.
+
+Arguably this is a bug fix, but the fact that it changes the
+expected contents of pg_shdepend seems like not a great thing
+to do in the stable branches, and perhaps we don't want the
+change in DROP OWNED BY semantics there either.  On the other
+hand, I opted not to force a catversion bump in HEAD, because
+the presence or absence of these entries doesn't matter for
+most purposes.
+
+Reported-by: Virender Singla <virender.cse@gmail.com>
+Reviewed-by: Laurenz Albe <laurenz.albe@cybertec.at>
+Discussion: https://postgr.es/m/CAM6Zo8woa62ZFHtMKox6a4jb8qQ=w87R2L0K8347iE-juQL2EA@mail.gmail.com_|_Fix pg_dumpall to cope with dangling OIDs in pg_auth_members.
+
+There is a race condition between "GRANT role" and "DROP ROLE",
+which allows GRANT to install pg_auth_members entries that refer to
+dropped roles.  (Commit 6566133c5 prevented that for the grantor
+field, but not for the granted or grantee roles.)  We'll soon fix
+that, at least in HEAD, but pg_dumpall needs to cope with the
+situation in case of pre-existing inconsistency.  As pg_dumpall
+stands, it will emit invalid commands like 'GRANT foo TO ""',
+which causes pg_upgrade to fail.  Fix it to emit warnings and skip
+those GRANTs, instead.
+
+There was some discussion of removing the problem by changing
+dumpRoleMembership's query to use JOIN not LEFT JOIN, but that
+would result in silently ignoring such entries.  It seems better
+to produce a warning.
+
+Pre-v16 branches already coped with dangling grantor OIDs by simply
+omitting the GRANTED BY clause.  I left that behavior as-is, although
+it's somewhat inconsistent with the behavior of later branches.
+
+Reported-by: Virender Singla <virender.cse@gmail.com>
+Discussion: https://postgr.es/m/CAM6Zo8woa62ZFHtMKox6a4jb8qQ=w87R2L0K8347iE-juQL2EA@mail.gmail.com
+Backpatch-through: 13_|_
