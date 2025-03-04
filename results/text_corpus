@@ -23229,4 +23229,37 @@ it's somewhat inconsistent with the behavior of later branches.
 
 Reported-by: Virender Singla <virender.cse@gmail.com>
 Discussion: https://postgr.es/m/CAM6Zo8woa62ZFHtMKox6a4jb8qQ=w87R2L0K8347iE-juQL2EA@mail.gmail.com
-Backpatch-through: 13_|_
+Backpatch-through: 13_|_Avoid NullTest deduction for clone clauses
+
+In commit b262ad440, we introduced an optimization that reduces an IS
+NOT NULL qual on a column defined as NOT NULL to constant true, and an
+IS NULL qual on a NOT NULL column to constant false, provided we can
+prove that the input expression of the NullTest is not nullable by any
+outer join.  This deduction happens after we have generated multiple
+clones of the same qual condition to cope with commuted-left-join
+cases.
+
+However, performing the NullTest deduction for clone clauses can be
+unsafe, because we don't have a reliable way to determine if the input
+expression of a NullTest is non-nullable: nullingrel bits in clone
+clauses may not reflect reality, so we dare not draw conclusions from
+clones about whether Vars are guaranteed not-null.
+
+To fix, we check whether the given RestrictInfo is a clone clause in
+restriction_is_always_true and restriction_is_always_false, and avoid
+performing any reduction if it is.
+
+There are several ensuing plan changes in predicate.out, and we have
+to modify the tests to ensure that they continue to test what they are
+intended to.  Additionally, this fix causes the test case added in
+f00ab1fd1 to no longer trigger the bug that commit fixed, so we also
+remove that test case.
+
+Back-patch to v17 where this bug crept in.
+
+Reported-by: Ronald Cruz <cruz@rentec.com>
+Diagnosed-by: Tom Lane <tgl@sss.pgh.pa.us>
+Author: Richard Guo <guofenglinux@gmail.com>
+Reviewed-by: Tom Lane <tgl@sss.pgh.pa.us>
+Discussion: https://postgr.es/m/f5320d3d-77af-4ce8-b9c3-4715ff33f213@rentec.com
+Backpatch-through: 17_|_
