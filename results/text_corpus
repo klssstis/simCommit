@@ -23262,4 +23262,45 @@ Diagnosed-by: Tom Lane <tgl@sss.pgh.pa.us>
 Author: Richard Guo <guofenglinux@gmail.com>
 Reviewed-by: Tom Lane <tgl@sss.pgh.pa.us>
 Discussion: https://postgr.es/m/f5320d3d-77af-4ce8-b9c3-4715ff33f213@rentec.com
-Backpatch-through: 17_|_
+Backpatch-through: 17_|_Fix some performance issues in GIN query startup.
+
+If a GIN index search had a lot of search keys (for example,
+"jsonbcol ?| array[]" with tens of thousands of array elements),
+both ginFillScanKey() and startScanKey() took O(N^2) time.
+Worse, those loops were uncancelable for lack of CHECK_FOR_INTERRUPTS.
+
+The problem in ginFillScanKey() is the brute-force search key
+de-duplication done in ginFillScanEntry().  The most expedient
+solution seems to be to just stop trying to de-duplicate once
+there are "too many" search keys.  We could imagine working harder,
+say by using a sort-and-unique algorithm instead of brute force
+compare-all-the-keys.  But it seems unlikely to be worth the trouble.
+There is no correctness issue here, since the code already allowed
+duplicate keys if any extra_data is present.
+
+The problem in startScanKey() is the loop that attempts to identify
+the first non-required search key.  In the submitted test case, that
+vainly tests all the key positions, and each iteration takes O(N)
+time.  One part of that is that it's reinitializing the entryRes[]
+array from scratch each time, which is entirely unnecessary given
+that the triConsistentFn isn't supposed to scribble on its input.
+We can easily adjust the array contents incrementally instead.
+The other part of it is that the triConsistentFn may itself take
+O(N) time (and does in this test case).  This is all extremely
+brute force: in simple cases with AND or OR semantics, we could
+know without any looping whatever that all or none of the keys
+are required.  But GIN opclasses don't have any API for exposing
+that knowledge, so at least in the short run there is little to
+be done about that.  Put in a CHECK_FOR_INTERRUPTS so that at
+least the loop is cancelable.
+
+These two changes together resolve the primary complaint that
+the test query doesn't respond promptly to cancel interrupts.
+Also, while they don't completely eliminate the O(N^2) behavior,
+they do provide quite a nice speedup for mid-sized examples.
+
+Bug: #18831
+Reported-by: Niek <niek.brasa@hitachienergy.com>
+Author: Tom Lane <tgl@sss.pgh.pa.us>
+Discussion: https://postgr.es/m/18831-e845ac44ebc5dd36@postgresql.org
+Backpatch-through: 13_|_
