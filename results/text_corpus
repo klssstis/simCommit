@@ -23303,4 +23303,24 @@ Bug: #18831
 Reported-by: Niek <niek.brasa@hitachienergy.com>
 Author: Tom Lane <tgl@sss.pgh.pa.us>
 Discussion: https://postgr.es/m/18831-e845ac44ebc5dd36@postgresql.org
-Backpatch-through: 13_|_
+Backpatch-through: 13_|_Don't try to parallelize array_agg() on an anonymous record type.
+
+This doesn't work because record_recv requires the typmod that
+identifies the specific record type (in our session) and
+array_agg_deserialize has no convenient way to get that information.
+The result is an "input of anonymous composite types is not
+implemented" error.
+
+We could probably make this work if we had to, but it does not seem
+worth the trouble, given that it took this long to get a field report.
+Just shut off parallelization, as though record_recv didn't exist.
+
+Oversight in commit 16fd03e95.  Back-patch to v16 where that
+came in.
+
+Reported-by: Kirill Zdornyy <kirill@dineserve.com>
+Diagnosed-by: Richard Guo <guofenglinux@gmail.com>
+Author: Tom Lane <tgl@sss.pgh.pa.us>
+Reviewed-by: David Rowley <dgrowleyml@gmail.com>
+Discussion: https://postgr.es/m/atLI5Kce2ie1zcYjU0w_kjtVaxiYbYGTihrkLDmGZQnRDD4pnXukIATaABbnIj9pUnelC4ESvCXMm4HAyHg-v61XABaKpERj0A2IXzJZM7g=@dineserve.com
+Backpatch-through: 16_|_
