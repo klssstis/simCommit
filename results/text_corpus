@@ -23323,4 +23323,34 @@ Diagnosed-by: Richard Guo <guofenglinux@gmail.com>
 Author: Tom Lane <tgl@sss.pgh.pa.us>
 Reviewed-by: David Rowley <dgrowleyml@gmail.com>
 Discussion: https://postgr.es/m/atLI5Kce2ie1zcYjU0w_kjtVaxiYbYGTihrkLDmGZQnRDD4pnXukIATaABbnIj9pUnelC4ESvCXMm4HAyHg-v61XABaKpERj0A2IXzJZM7g=@dineserve.com
-Backpatch-through: 16_|_
+Backpatch-through: 16_|_BRIN: be more strict about required support procs
+
+With improperly defined operator classes, it's possible to get a
+Postgres crash because we'd try to invoke a procedure that doesn't
+exist.  This is because the code is being a bit too trusting that the
+opclass is correctly defined.  Add some ereport(ERROR)s for cases where
+mandatory support procedures are not defined, transforming the crashes
+into errors.
+
+The particular case that was reported is an incomplete opclass in
+PostGIS.
+
+Backpatch all the way down to 13.
+
+Reported-by: Tobias Wendorff <tobias.wendorff@tu-dortmund.de>
+Diagnosed-by: David Rowley <dgrowleyml@gmail.com>
+Reviewed-by: Tomas Vondra <tomas@vondra.me>
+Discussion: https://postgr.es/m/fb6d9a35-6c8e-4869-af80-0a4944a793a4@tu-dortmund.de_|_Doc: improve description of window function processing.
+
+The previous wording talked about a "single pass over the data",
+which can be read as promising more than intended (to wit, that only
+one WindowAgg plan node will be used).  What we promise is only what
+the SQL spec requires, namely that the data not get re-sorted between
+window functions with compatible PARTITION BY/ORDER BY clauses.
+Adjust the wording in hopes of making this clearer.
+
+Reported-by: Christopher Inokuchi <cinokuchi@gmail.com>
+Author: Tom Lane <tgl@sss.pgh.pa.us>
+Reviewed-by: David G. Johnston <david.g.johnston@gmail.com>
+Discussion: https://postgr.es/m/CABde6B5va2wMsnM79u_x=n9KUgfKQje_pbLROEBmA9Ru5XWidw@mail.gmail.com
+Backpatch-through: 13_|_
