@@ -23353,4 +23353,20 @@ Reported-by: Christopher Inokuchi <cinokuchi@gmail.com>
 Author: Tom Lane <tgl@sss.pgh.pa.us>
 Reviewed-by: David G. Johnston <david.g.johnston@gmail.com>
 Discussion: https://postgr.es/m/CABde6B5va2wMsnM79u_x=n9KUgfKQje_pbLROEBmA9Ru5XWidw@mail.gmail.com
-Backpatch-through: 13_|_
+Backpatch-through: 13_|_pg_logicalinspect: Fix possible crash when passing a directory path.
+
+Previously, pg_logicalinspect functions were too trusting of their
+input and blindly passed it to SnapBuildRestoreSnapshot(). If the
+input pointed to a directory, the server could a PANIC error while
+attempting to fsync_fname() with isdir=false on a directory.
+
+This commit adds validation checks for input filenames and passes the
+LSN extracted from the filename to SnapBuildRestoreSnapshot() instead
+of the filename itself. It also adds regression tests for various
+input patterns and permission checks.
+
+Bug: #18828
+Reported-by: Robins Tharakan <tharakan@gmail.com>
+Co-authored-by: Bertrand Drouvot <bertranddrouvot.pg@gmail.com>
+Co-authored-by: Masahiko Sawada <sawada.mshk@gmail.com>
+Discussion: https://postgr.es/m/18828-0f4701c635064211@postgresql.org_|_
