@@ -23369,4 +23369,32 @@ Bug: #18828
 Reported-by: Robins Tharakan <tharakan@gmail.com>
 Co-authored-by: Bertrand Drouvot <bertranddrouvot.pg@gmail.com>
 Co-authored-by: Masahiko Sawada <sawada.mshk@gmail.com>
-Discussion: https://postgr.es/m/18828-0f4701c635064211@postgresql.org_|_
+Discussion: https://postgr.es/m/18828-0f4701c635064211@postgresql.org_|_Build whole-row Vars the same way during parsing and planning.
+
+makeWholeRowVar() has different rules for constructing a
+whole-row Var depending on the kind of RTE it's representing.
+This turns out to be problematic because the rewriter and planner
+can convert view RTEs and set-returning-function RTEs into
+subquery RTEs; so a whole-row Var made during planning might
+look different from one made by the parser.  In isolation this
+doesn't cause any problem, but if a query contains Vars made
+both ways for the same varno, there are cross-checks in the
+executor that will complain.  This manifests for UPDATE, DELETE,
+and MERGE queries that use whole-row table references.
+
+To fix, we need makeWholeRowVar() to produce the same result
+from an inlined RTE as it would have for the original.  For
+an inlined view, we can use RangeTblEntry.relid to detect
+that this had been a view RTE.  For inlined SRFs, make a
+data structure definition change akin to commit 47bb9db75,
+and say that we won't clear RangeTblEntry.functions until
+the end of planning.  That allows makeWholeRowVar() to
+repeat what it would have done with the unmodified RTE.
+
+Reported-by: Duncan Sands <duncan.sands@deepbluecap.com>
+Reported-by: Dean Rasheed <dean.a.rasheed@gmail.com>
+Diagnosed-by: Tender Wang <tndrwang@gmail.com>
+Author: Tom Lane <tgl@sss.pgh.pa.us>
+Reviewed-by: Dean Rasheed <dean.a.rasheed@gmail.com>
+Discussion: https://postgr.es/m/3518c50a-ab18-482f-b916-a37263622501@deepbluecap.com
+Backpatch-through: 13_|_
