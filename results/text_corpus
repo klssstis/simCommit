@@ -23397,4 +23397,40 @@ Diagnosed-by: Tender Wang <tndrwang@gmail.com>
 Author: Tom Lane <tgl@sss.pgh.pa.us>
 Reviewed-by: Dean Rasheed <dean.a.rasheed@gmail.com>
 Discussion: https://postgr.es/m/3518c50a-ab18-482f-b916-a37263622501@deepbluecap.com
+Backpatch-through: 13_|_Fix ARRAY_SUBLINK and ARRAY[] for int2vector and oidvector input.
+
+If the given input_type yields valid results from both
+get_element_type and get_array_type, initArrayResultAny believed the
+former and treated the input as an array type.  However this is
+inconsistent with what get_promoted_array_type does, leading to
+situations where the output of an ARRAY() subquery is labeled with
+the wrong type: it's labeled as oidvector[] but is really a 2-D
+array of OID.  That at least results in strange output, and can
+result in crashes if further processing such as unnest() is applied.
+AFAIK this is only possible with the int2vector and oidvector
+types, which are special-cased to be treated mostly as true arrays
+even though they aren't quite.
+
+Fix by switching the logic to match get_promoted_array_type by
+testing get_array_type not get_element_type, and remove an Assert
+thereby made pointless.  (We need not introduce a symmetrical
+check for get_element_type in the other if-branch, because
+initArrayResultArr will check it.)  This restores the behavior
+that existed before bac27394a introduced initArrayResultAny:
+the output really is int2vector[] or oidvector[].
+
+Comparable confusion exists when an input of an ARRAY[] construct
+is int2vector or oidvector: transformArrayExpr decides it's dealing
+with a multidimensional array constructor, and we end up with
+something that's a multidimensional OID array but is alleged to be
+of type oidvector.  I have not found a crashing case here, but it's
+easy to demonstrate totally-wrong results.  Adjust that code so
+that what you get is an oidvector[] instead, for consistency with
+ARRAY() subqueries.  (This change also makes these types work like
+domains-over-arrays in this context, which seems correct.)
+
+Bug: #18840
+Reported-by: yang lei <ylshiyu@126.com>
+Author: Tom Lane <tgl@sss.pgh.pa.us>
+Discussion: https://postgr.es/m/18840-fbc9505f066e50d6@postgresql.org
 Backpatch-through: 13_|_
