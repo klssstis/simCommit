@@ -23433,4 +23433,24 @@ Bug: #18840
 Reported-by: yang lei <ylshiyu@126.com>
 Author: Tom Lane <tgl@sss.pgh.pa.us>
 Discussion: https://postgr.es/m/18840-fbc9505f066e50d6@postgresql.org
-Backpatch-through: 13_|_
+Backpatch-through: 13_|_contrib/isn: Make weak mode a GUC setting, and fix related functions.
+
+isn's weak mode used to be a simple static variable, settable only
+via the isn_weak(boolean) function.  This wasn't optimal, as this
+means it doesn't respect transactions nor respond to RESET ALL.
+
+This patch makes isn.weak a GUC parameter instead, so that
+it acts like any other user-settable parameter.
+
+The isn_weak() functions are retained for backwards compatibility.
+But we must fix their volatility markings: they were marked IMMUTABLE
+which is surely incorrect, and PARALLEL RESTRICTED which isn't right
+for GUC-related functions either.  Mark isn_weak(boolean) as
+VOLATILE and PARALLEL UNSAFE, matching set_config().  Mark isn_weak()
+as STABLE and PARALLEL SAFE, matching current_setting().
+
+Reported-by: Viktor Holmberg <v@viktorh.net>
+Diagnosed-by: Daniel Gustafsson <daniel@yesql.se>
+Author: Viktor Holmberg <v@viktorh.net>
+Reviewed-by: Tom Lane <tgl@sss.pgh.pa.us>
+Discussion: https://postgr.es/m/790bc1f9-74dc-4b50-94d2-8147315b1556@Spark_|_
