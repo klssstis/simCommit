@@ -23453,4 +23453,29 @@ Reported-by: Viktor Holmberg <v@viktorh.net>
 Diagnosed-by: Daniel Gustafsson <daniel@yesql.se>
 Author: Viktor Holmberg <v@viktorh.net>
 Reviewed-by: Tom Lane <tgl@sss.pgh.pa.us>
-Discussion: https://postgr.es/m/790bc1f9-74dc-4b50-94d2-8147315b1556@Spark_|_
+Discussion: https://postgr.es/m/790bc1f9-74dc-4b50-94d2-8147315b1556@Spark_|_Keep the decompressed filter in brin_bloom_union
+
+The brin_bloom_union() function combines two BRIN summaries, by merging
+one filter into the other. With bloom, we have to decompress the filters
+first, but the function failed to update the summary to store the merged
+filter. As a consequence, the index may be missing some of the data, and
+return false negatives.
+
+This issue exists since BRIN bloom indexes were introduced in Postgres
+14, but at that point the union function was called only when two
+sessions happened to summarize a range concurrently, which is rare. It
+got much easier to hit in 17, as parallel builds use the union function
+to merge summaries built by workers.
+
+Fixed by storing a pointer to the decompressed filter, and freeing the
+original one. Free the second filter too, if it was decompressed. The
+freeing is not strictly necessary, because the union is called in
+short-lived contexts, but it's tidy.
+
+Backpatch to 14, where BRIN bloom indexes were introduced.
+
+Reported by Arseniy Mukhin, investigation and fix by me.
+
+Reported-by: Arseniy Mukhin
+Discussion: https://postgr.es/m/18855-1cf1c8bcc22150e6%40postgresql.org
+Backpatch-through: 14_|_
