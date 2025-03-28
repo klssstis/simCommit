@@ -23478,4 +23478,43 @@ Reported by Arseniy Mukhin, investigation and fix by me.
 
 Reported-by: Arseniy Mukhin
 Discussion: https://postgr.es/m/18855-1cf1c8bcc22150e6%40postgresql.org
-Backpatch-through: 14_|_
+Backpatch-through: 14_|_Fix guc_malloc calls for consistency and OOM checks
+
+check_createrole_self_grant and check_synchronized_standby_slots
+were allocating memory on a LOG elevel without checking if the
+allocation succeeded or not, which would have led to a segfault
+on allocation failure.
+
+On top of that, a number of callsites were using the ERROR level,
+relying on erroring out rather than returning false to allow the
+GUC machinery handle it gracefully.  Other callsites used WARNING
+instead of LOG.  While neither being not wrong, this changes all
+check_ functions do it consistently with LOG.
+
+init_custom_variable gets a promoted elevel to FATAL to keep
+the guc_malloc error handling in line with the rest of the
+error handling in that function which already call FATAL.  If
+we encounter an OOM in this callsite there is no graceful
+handling to be had, better to error out hard.
+
+Backpatch the fix to check_createrole_self_grant down to v16
+and the fix to check_synchronized_standby_slots down to v17
+where they were introduced.
+
+Author: Daniel Gustafsson <daniel@yesql.se>
+Reported-by: Nikita <pm91.arapov@gmail.com>
+Reviewed-by: Tom Lane <tgl@sss.pgh.pa.us>
+Bug: #18845
+Discussion: https://postgr.es/m/18845-582c6e10247377ec@postgresql.org
+Backpatch-through: 16_|_Prevent assertion failure in contrib/pg_freespacemap.
+
+Applying pg_freespacemap() to a relation lacking storage (such as a
+view) caused an assertion failure, although there was no ill effect
+in non-assert builds.  Add an error check for that case.
+
+Bug: #18866
+Reported-by: Robins Tharakan <tharakan@gmail.com>
+Author: Tender Wang <tndrwang@gmail.com>
+Reviewed-by: Euler Taveira <euler@eulerto.com>
+Discussion: https://postgr.es/m/18866-d68926d0f1c72d44@postgresql.org
+Backpatch-through: 13_|_
