@@ -23517,4 +23517,30 @@ Reported-by: Robins Tharakan <tharakan@gmail.com>
 Author: Tender Wang <tndrwang@gmail.com>
 Reviewed-by: Euler Taveira <euler@eulerto.com>
 Discussion: https://postgr.es/m/18866-d68926d0f1c72d44@postgresql.org
-Backpatch-through: 13_|_
+Backpatch-through: 13_|_Fix MERGE with DO NOTHING actions into a partitioned table.
+
+ExecInitPartitionInfo() duplicates much of the logic in
+ExecInitMerge(), except that it failed to handle DO NOTHING
+actions. This would cause an "unknown action in MERGE WHEN clause"
+error if a MERGE with any DO NOTHING actions attempted to insert into
+a partition not already initialised by ExecInitModifyTable().
+
+Bug: #18871
+Reported-by: Alexander Lakhin <exclusion@gmail.com>
+Author: Tender Wang <tndrwang@gmail.com>
+Reviewed-by: Gurjeet Singh <gurjeet@singh.im>
+Discussion: https://postgr.es/m/18871-b44e3c96de3bd2e8%40postgresql.org
+Backpatch-through: 15_|_Fix crash if LockErrorCleanup() is called twice
+
+The refactoring in commit 3c0fd64fec removed the clearing of
+awaitedLock from LockErrorCleanup(). It's still needed, otherwise
+LockErrorCleanup() during abort processing will try to update the
+LOCALLOCK struct even after the lock has already been released. Put it
+back.
+
+Reported-by: Richard Guo <guofenglinux@gmail.com>
+Reported-by: Robins Tharakan <tharakan@gmail.com>
+Reported-by: Alexander Lakhin <exclusion@gmail.com>
+Discussion: https://www.postgresql.org/message-id/flat/CAMbWs4_dNX1SzBmvFdoY-LxJh_4W_BjtVd5i008ihfU-wFF=eg@mail.gmail.com
+Discussion: https://www.postgresql.org/message-id/18832-38e5575b1bbd7277@postgresql.org
+Discussion: https://www.postgresql.org/message-id/e11a30e5-c0d8-491d-8546-3a1b50c10ad4@gmail.com_|_
