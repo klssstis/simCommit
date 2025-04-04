@@ -23565,4 +23565,20 @@ Bug: #18875
 Reported-by: Alexander Lakhin <exclusion@gmail.com>
 Author: Tom Lane <tgl@sss.pgh.pa.us>
 Discussion: https://postgr.es/m/18875-07a29c49c825a608@postgresql.org
-Backpatch-through: 13_|_
+Backpatch-through: 13_|_Relax assertion in finding correct GiST parent
+
+Commit 28d3c2ddcf introduced an assertion that if the memorized
+downlink location in the insertion stack isn't valid, the parent's
+LSN should've changed too. Turns out that was too strict. In
+gistFindCorrectParent(), if we walk right, we update the parent's
+block number and clear its memorized 'downlinkoffnum'. That triggered
+the assertion on next call to gistFindCorrectParent(), if the parent
+needed to be split too. Relax the assertion, so that it's OK if
+downlinkOffnum is InvalidOffsetNumber.
+
+Backpatch to v13-, all supported versions. The assertion was added in
+commit 28d3c2ddcf in v12.
+
+Reported-by: Alexander Lakhin <exclusion@gmail.com>
+Reviewed-by: Tender Wang <tndrwang@gmail.com>
+Discussion: https://www.postgresql.org/message-id/18396-03cac9beb2f7aac3@postgresql.org_|_
