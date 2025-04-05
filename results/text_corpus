@@ -23581,4 +23581,31 @@ commit 28d3c2ddcf in v12.
 
 Reported-by: Alexander Lakhin <exclusion@gmail.com>
 Reviewed-by: Tender Wang <tndrwang@gmail.com>
-Discussion: https://www.postgresql.org/message-id/18396-03cac9beb2f7aac3@postgresql.org_|_
+Discussion: https://www.postgresql.org/message-id/18396-03cac9beb2f7aac3@postgresql.org_|_Repair misbehavior with duplicate entries in FK SET column lists.
+
+Since v15 we've had an option to apply a foreign key constraint's
+ON DELETE SET DEFAULT or SET NULL action to just some of the
+referencing columns.  There was not a check for duplicate entries in
+the list of columns-to-set, though.  That caused a potential memory
+stomp in CreateConstraintEntry(), which incautiously assumed that
+the list of columns-to-set couldn't be longer than the number of key
+columns.  Even after fixing that, the case doesn't work because you
+get an error like "multiple assignments to same column" from the SQL
+command that is generated to do the update.
+
+We could either raise an error for duplicate columns or silently
+suppress the dups, and after a bit of thought I chose to do the
+latter.  This is motivated by the fact that duplicates in the FK
+column list are legal, so it's not real clear why duplicates
+in the columns-to-set list shouldn't be.  Of course there's no
+need to actually set the column more than once.
+
+I left in the fix in CreateConstraintEntry() too, just because
+it didn't seem like such low-level code ought to be making
+assumptions about what it's handed.
+
+Bug: #18879
+Reported-by: Yu Liang <luy70@psu.edu>
+Author: Tom Lane <tgl@sss.pgh.pa.us>
+Discussion: https://postgr.es/m/18879-259fc59d072bd4d7@postgresql.org
+Backpatch-through: 15_|_
