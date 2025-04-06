@@ -23608,4 +23608,50 @@ Bug: #18879
 Reported-by: Yu Liang <luy70@psu.edu>
 Author: Tom Lane <tgl@sss.pgh.pa.us>
 Discussion: https://postgr.es/m/18879-259fc59d072bd4d7@postgresql.org
-Backpatch-through: 15_|_
+Backpatch-through: 15_|_Fix parse_cte.c's failure to examine sub-WITHs in DML statements.
+
+makeDependencyGraphWalker thought that only SelectStmt nodes could
+contain a WithClause.  Which was true in our original implementation
+of WITH, but astonishingly we missed updating this code when we added
+the ability to attach WITH to INSERT/UPDATE/DELETE (and later MERGE).
+Moreover, since it was coded to deliberately block recursion to a
+WithClause, even updating raw_expression_tree_walker didn't save it.
+
+The upshot of this was that we didn't see references to outer CTE
+names appearing within an inner WITH, and would neither complain about
+disallowed recursion nor account for such references when sorting CTEs
+into a usable order.  The lack of complaints about this is perhaps not
+so surprising, because typical usage of WITH wouldn't hit either case.
+Still, it's pretty broken; failing to detect recursion here leads to
+assert failures or worse later on.
+
+Fix by factoring out the processing of sub-WITHs into a new function
+WalkInnerWith, and invoking that for all the statement types that
+can have WITH.
+
+Bug: #18878
+Reported-by: Yu Liang <luy70@psu.edu>
+Author: Tom Lane <tgl@sss.pgh.pa.us>
+Discussion: https://postgr.es/m/18878-a26fa5ab6be2f2cf@postgresql.org
+Backpatch-through: 13_|_Avoid double transformation of json_array()'s subquery.
+
+transformJsonArrayQueryConstructor() applied transformStmt() to
+the same subquery tree twice.  While this causes no issue in many
+cases, there are some where it causes a coredump, thanks to the
+parser's habit of scribbling on its input.
+
+Fix by making a copy before the first transformation (compare
+0f43083d1).  This is quite brute-force, but then so is the
+whole business of transforming the input twice.  Per discussion
+in the bug thread, this implementation of json_array() parsing
+should be replaced completely.  But that will take some work
+and will surely not be back-patchable, so for the moment let's
+take the easy way out.
+
+Oversight in 7081ac46a.  Back-patch to v16 where that came in.
+
+Bug: #18877
+Reported-by: Yu Liang <luy70@psu.edu>
+Author: Tom Lane <tgl@sss.pgh.pa.us>
+Discussion: https://postgr.es/m/18877-c3c3ad75845833bb@postgresql.org
+Backpatch-through: 16_|_
