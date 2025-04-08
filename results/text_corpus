@@ -23654,4 +23654,23 @@ Bug: #18877
 Reported-by: Yu Liang <luy70@psu.edu>
 Author: Tom Lane <tgl@sss.pgh.pa.us>
 Discussion: https://postgr.es/m/18877-c3c3ad75845833bb@postgresql.org
-Backpatch-through: 16_|_
+Backpatch-through: 16_|_Fix uninitialized index information access during apply.
+
+The issue happens when building conflict information during apply of
+INSERT or UPDATE operations that violate unique constraints on leaf
+partitions.
+
+The problem was introduced in commit 9ff68679b5, which removed the
+redundant calls to ExecOpenIndices/ExecCloseIndices. The previous code was
+relying on the redundant ExecOpenIndices call in
+apply_handle_tuple_routing() to build the index information required for
+unique key conflict detection.
+
+The fix is to delay building the index information until a conflict is
+detected instead of relying on ExecOpenIndices to do the same. The
+additional benefit of this approach is that it avoids building index
+information when there is no conflict.
+
+Author: Hou Zhijie <houzj.fnst@fujitsu.com>
+Reviewed-by:Reviewed-by: Amit Kapila <amit.kapila16@gmail.com>
+Discussion: https://postgr.es/m/TYAPR01MB57244ADA33DDA57119B9D26494A62@TYAPR01MB5724.jpnprd01.prod.outlook.com_|_
