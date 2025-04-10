@@ -23673,4 +23673,33 @@ information when there is no conflict.
 
 Author: Hou Zhijie <houzj.fnst@fujitsu.com>
 Reviewed-by:Reviewed-by: Amit Kapila <amit.kapila16@gmail.com>
-Discussion: https://postgr.es/m/TYAPR01MB57244ADA33DDA57119B9D26494A62@TYAPR01MB5724.jpnprd01.prod.outlook.com_|_
+Discussion: https://postgr.es/m/TYAPR01MB57244ADA33DDA57119B9D26494A62@TYAPR01MB5724.jpnprd01.prod.outlook.com_|_Fix test races between syscache-update-pruned.spec and autovacuum.
+
+This spec fails ~3% of my Valgrind runs, and the spec has failed on Valgrind
+buildfarm member skink at a similar rate.  Two problems contributed to that:
+
+- A competing buffer pin triggered VACUUM's lazy_scan_noprune() path, causing
+  "tuples missed: 1 dead from 1 pages not removed due to cleanup lock
+  contention".  FREEZE fixes that.
+
+- The spec ran lazy VACUUM immediately after VACUUM FULL.  The spec implicitly
+  assumed lazy VACUUM prunes the one tuple that VACUUM FULL made dead.  First
+  wait for old snapshots, making that assumption reliable.
+
+This also adds two forms of defense in depth:
+
+- Wait for snapshots using shared catalog pruning rules (VISHORIZON_SHARED).
+  This avoids the removable cutoff moving backward when an XID-bearing
+  autoanalyze process runs in another database.  That may never happen in this
+  test, but it's cheap insurance.
+
+- Use lazy VACUUM option DISABLE_PAGE_SKIPPING.  Commit
+  c2dc1a79767a0f947e1145f82eb65dfe4360d25f did this for a related requirement
+  in other tests, but I suspect FREEZE is necessary and sufficient in all
+  these tests.
+
+Back-patch to v17, where the test first appeared.
+
+Reported-by: Andres Freund <andres@anarazel.de>
+Discussion: https://postgr.es/m/sv3taq4e6ea4qckimien3nxp3sz4b6cw6sfcy4nhwl52zpur4g@h6i6tohxmizu
+Backpatch-through: 17_|_
