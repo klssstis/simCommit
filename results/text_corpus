@@ -23702,4 +23702,14 @@ Back-patch to v17, where the test first appeared.
 
 Reported-by: Andres Freund <andres@anarazel.de>
 Discussion: https://postgr.es/m/sv3taq4e6ea4qckimien3nxp3sz4b6cw6sfcy4nhwl52zpur4g@h6i6tohxmizu
-Backpatch-through: 17_|_
+Backpatch-through: 17_|_Remove useless check for negative result of ip_addrsize().
+
+By inspection, ip_addrsize() can't return a negative result.
+(If it could, we'd have way bigger problems elsewhere.)
+So delete useless check in network_send().  Most C compilers
+are probably perfectly capable of removing this code by
+themselves, but it's confusing/misleading.
+
+Bug: #18889
+Reported-by: Daniel Elishakov <dan-eli@mail.ru>
+Discussion: https://postgr.es/m/18889-73d4f19e953a629e@postgresql.org_|_
