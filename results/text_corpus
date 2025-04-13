@@ -23712,4 +23712,37 @@ themselves, but it's confusing/misleading.
 
 Bug: #18889
 Reported-by: Daniel Elishakov <dan-eli@mail.ru>
-Discussion: https://postgr.es/m/18889-73d4f19e953a629e@postgresql.org_|_
+Discussion: https://postgr.es/m/18889-73d4f19e953a629e@postgresql.org_|_Fix GIN's shimTriConsistentFn to not corrupt its input.
+
+Commit 0f21db36d made an assumption that GIN triConsistentFns
+would not modify their input entryRes[] arrays.  But in fact,
+the "shim" triConsistentFn that we use for opclasses that don't
+supply their own did exactly that, potentially leading to wrong
+answers from a GIN index search.  Through bad luck, none of the
+test cases that we have for such opclasses exposed the bug.
+
+One response to this could be that the assumption of consistency check
+functions not modifying entryRes[] arrays is a bad one, but it still
+seems reasonable to me.  Notably, shimTriConsistentFn is itself
+assuming that with respect to the underlying boolean consistentFn,
+so it's sure being self-centered in supposing that it gets to do so.
+
+Fortunately, it's quite simple to fix shimTriConsistentFn to restore
+the entry-time state of entryRes[], so let's do that instead.
+
+This issue doesn't affect any core GIN opclasses, since they all
+supply their own triConsistentFns.  It does affect contrib modules
+btree_gin, hstore, and intarray.
+
+Along the way, I (tgl) noticed that shimTriConsistentFn failed to
+pick up on a "recheck" flag returned by its first call to the boolean
+consistentFn.  This may be only a latent problem, since it would be
+unlikely for a consistentFn to set recheck for the all-false case
+and not any other cases.  (Indeed, none of our contrib modules do
+that.)  Nonetheless, it's formally wrong.
+
+Reported-by: Vinod Sridharan <vsridh90@gmail.com>
+Author: Vinod Sridharan <vsridh90@gmail.com>
+Reviewed-by: Tom Lane <tgl@sss.pgh.pa.us>
+Discussion: https://postgr.es/m/CAFMdLD7XzsXfi1+DpTqTgrD8XU0i2C99KuF=5VHLWjx4C1pkcg@mail.gmail.com
+Backpatch-through: 13_|_
