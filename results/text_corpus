@@ -23745,4 +23745,15 @@ Reported-by: Vinod Sridharan <vsridh90@gmail.com>
 Author: Vinod Sridharan <vsridh90@gmail.com>
 Reviewed-by: Tom Lane <tgl@sss.pgh.pa.us>
 Discussion: https://postgr.es/m/CAFMdLD7XzsXfi1+DpTqTgrD8XU0i2C99KuF=5VHLWjx4C1pkcg@mail.gmail.com
-Backpatch-through: 13_|_
+Backpatch-through: 13_|_doc: Fix missing whitespace in pg_restore documentation.
+
+Previously, a space was missing between "<option>--exclude-schema</option>"
+and "for" in the pg_restore documentation. This commit fixes the typo by
+adding the missing whitespace.
+
+Back-patch to v17 where the typo was added.
+
+Author: Lele Gaifax <lele@metapensiero.it>
+Reviewed-by: Fujii Masao <masao.fujii@gmail.com>
+Discussion: https://postgr.es/m/87lds3ysm0.fsf@metapensiero.it
+Backpatch-through: 17_|_
