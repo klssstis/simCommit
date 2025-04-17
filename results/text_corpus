@@ -23756,4 +23756,29 @@ Back-patch to v17 where the typo was added.
 Author: Lele Gaifax <lele@metapensiero.it>
 Reviewed-by: Fujii Masao <masao.fujii@gmail.com>
 Discussion: https://postgr.es/m/87lds3ysm0.fsf@metapensiero.it
-Backpatch-through: 17_|_
+Backpatch-through: 17_|_Improve comments for estimate_multivariate_ndistinct()
+
+estimate_multivariate_ndistinct() is coded to assume the caller handles
+passing it a list of GroupVarInfos with unique 'var' fields over the
+entire list.  6bb6a62f3 added code which didn't ensure this and that
+could result in estimate_multivariate_ndistinct() erroring out with:
+
+ERROR:  corrupt MVNDistinct entry
+
+This occurred because estimate_multivariate_ndistinct() first searches
+for a set of stats that match to at least two of the given GroupVarInfos
+and then later assumes that the MVNDistinctItem.items array of the
+best matching stats will have an entry for those two columns.  If the
+GroupVarInfos List contained a duplicate entry then the same column could
+be matched to twice and that could trick the code into thinking we have
+>= 2 columns matched in cases where only a single distinct column has been
+matched.  This could result in a failure to find the correct
+MVNDistinctItem in the stats as the array containing those never
+contains an item for single columns.
+
+Here we make it more clear that the function needs a distinct set of
+GroupVarInfos and also tidy up a few other comments to make things a bit
+easier to follow.
+
+Author: David Rowley <drowleyml@gmail.com>
+Discussion: https://postgr.es/m/CAApHDvocZCUhM9W9mJ39d6oQz7ePKoqFnao_347mvC-A7QatcQ@mail.gmail.com_|_
