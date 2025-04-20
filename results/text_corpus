@@ -23781,4 +23781,52 @@ GroupVarInfos and also tidy up a few other comments to make things a bit
 easier to follow.
 
 Author: David Rowley <drowleyml@gmail.com>
-Discussion: https://postgr.es/m/CAApHDvocZCUhM9W9mJ39d6oQz7ePKoqFnao_347mvC-A7QatcQ@mail.gmail.com_|_
+Discussion: https://postgr.es/m/CAApHDvocZCUhM9W9mJ39d6oQz7ePKoqFnao_347mvC-A7QatcQ@mail.gmail.com_|_Fix issue with ORDER BY / DISTINCT aggregates and FILTER
+
+1349d2790 added support so that aggregate functions with an ORDER BY or
+DISTINCT clause could make use of presorted inputs to avoid an implicit
+sort within nodeAgg.c.  That commit failed to consider that a FILTER
+clause may exist that filters rows before the aggregate function
+arguments are evaluated.  That can be problematic if an aggregate
+argument contains an expression which could error out during evaluation.
+It's perfectly valid to want to have a FILTER clause which eliminates
+such values, and with the pre-sorted path added in 1349d2790, it was
+possible that the planner would produce a plan with a Sort node above
+the Aggregate to perform the sort on the aggregate's arguments long before
+the Aggregate node would filter out the non-matching values.
+
+Here we fix this by inspecting ORDER BY / DISTINCT aggregate functions
+which have a FILTER clause to see if the aggregate's arguments are
+anything more complex than a Var or a Const.  Evaluating these isn't
+going to cause an error.  If we find any non-Var, non-Const parameters
+then the planner will now opt to perform the sort in the Aggregate node
+for these aggregates, i.e. disable the presorted aggregate optimization.
+
+An alternative fix would have been to completely disallow the presorted
+optimization for Aggrefs with any FILTER clause, but that wasn't done as
+that could cause large performance regressions for queries that see
+significant gains from 1349d2790 due to presorted results coming in from
+an Index Scan.
+
+Backpatch to 16, where 1349d2790 was introduced
+
+Author: David Rowley <dgrowleyml@gmail.com>
+Reported-by: Kaimeh <kkaimeh@gmail.com>
+Diagnosed-by: Tom Lane <tgl@sss.pgh.pa.us>
+Discussion: https://postgr.es/m/CAK-%2BJz9J%3DQ06-M7cDJoPNeYbz5EZDqkjQbJnmRyQyzkbRGsYkA%40mail.gmail.com
+Backpatch-through: 16_|_Be more wary of corrupt data in pageinspect's heap_page_items().
+
+The original intent in heap_page_items() was to return nulls, not
+throw an error or crash, if an item was sufficiently corrupt that
+we couldn't safely extract data from it.  However, commit d6061f83a
+utterly missed that memo, and not only put in an un-length-checked
+copy of the tuple's data section, but also managed to break the check
+on sane nulls-bitmap length.  Either mistake could possibly lead to
+a SIGSEGV crash if the tuple is corrupt.
+
+Bug: #18896
+Reported-by: Dmitry Kovalenko <d.kovalenko@postgrespro.ru>
+Author: Dmitry Kovalenko <d.kovalenko@postgrespro.ru>
+Reviewed-by: Tom Lane <tgl@sss.pgh.pa.us>
+Discussion: https://postgr.es/m/18896-add267b8e06663e3@postgresql.org
+Backpatch-through: 13_|_
