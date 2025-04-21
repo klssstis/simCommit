@@ -23829,4 +23829,18 @@ Reported-by: Dmitry Kovalenko <d.kovalenko@postgrespro.ru>
 Author: Dmitry Kovalenko <d.kovalenko@postgrespro.ru>
 Reviewed-by: Tom Lane <tgl@sss.pgh.pa.us>
 Discussion: https://postgr.es/m/18896-add267b8e06663e3@postgresql.org
+Backpatch-through: 13_|_Avoid ERROR at ON COMMIT DELETE ROWS after relhassubclass=f.
+
+Commit 7102070329d8147246d2791321f9915c3b5abf31 fixed a similar bug, but
+it missed the case of database-wide ANALYZE ("use_own_xacts" mode).
+Commit a07e03fd8fa7daf4d1356f7cb501ffe784ea6257 changed consequences
+from silent discard of a pg_class stats (relpages et al.) update to
+ERROR "tuple to be updated was already modified".  Losing a relpages
+update of an ON COMMIT DELETE ROWS table was negligible, but a
+COMMIT-time error isn't negligible.  Back-patch to v13 (all supported
+versions).
+
+Reported-by: Richard Guo <guofenglinux@gmail.com
+Reported-by: Robins Tharakan <tharakan@gmail.com>
+Discussion: https://postgr.es/m/CAMbWs4-XwMKMKJ_GT=p3_-_=j9rQSEs1FbDFUnW9zHuKPsPNEQ@mail.gmail.com
 Backpatch-through: 13_|_
