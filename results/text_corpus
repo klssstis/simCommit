@@ -23843,4 +23843,37 @@ versions).
 Reported-by: Richard Guo <guofenglinux@gmail.com
 Reported-by: Robins Tharakan <tharakan@gmail.com>
 Discussion: https://postgr.es/m/CAMbWs4-XwMKMKJ_GT=p3_-_=j9rQSEs1FbDFUnW9zHuKPsPNEQ@mail.gmail.com
-Backpatch-through: 13_|_
+Backpatch-through: 13_|_Fix an oversight in 3f28b2fcac.
+
+Commit 3f28b2fcac tried to ensure that the replication origin shouldn't be
+advanced in case of an ERROR in the apply worker, so that it can request
+the same data again after restart. However, it is possible that an ERROR
+was caught and handled by a (say PL/pgSQL) function, and  the apply worker
+continues to apply further changes, in which case, we shouldn't reset the
+replication origin.
+
+Ensure to reset the origin only when the apply worker exits after an
+ERROR.
+
+Commit 3f28b2fcac added new function geterrlevel, which we removed in HEAD
+as part of this commit, but kept it in backbranches to avoid breaking any
+applications. A separate case can be made to have such a function even for
+HEAD.
+
+Reported-by: Shawn McCoy <shawn.the.mccoy@gmail.com>
+Author: Hayato Kuroda <kuroda.hayato@fujitsu.com>
+Reviewed-by: Masahiko Sawada <sawada.mshk@gmail.com>
+Reviewed-by: vignesh C <vignesh21@gmail.com>
+Reviewed-by: Amit Kapila <amit.kapila16@gmail.com>
+Backpatch-through: 16, where it was introduced
+Discussion: https://postgr.es/m/CALsgZNCGARa2mcYNVTSj9uoPcJo-tPuWUGECReKpNgTpo31_Pw@mail.gmail.com_|_gen_node_support.pl: improve error message for unclosed struct.
+
+This error message was 'runaway "struct_name"', which isn't all
+that clear; I think 'could not find closing brace for "struct_name"'
+is better.  Also, provide the location of the struct start using the
+script's usual '$file:$lineno' style.
+
+Bug: #18901
+Reported-by: Clemens Ruck <clemens.ruck@t-online.de>
+Author: Tom Lane <tgl@sss.pgh.pa.us>
+Discussion: https://postgr.es/m/18901-424272abe01357e6@postgresql.org_|_
