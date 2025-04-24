@@ -23876,4 +23876,71 @@ script's usual '$file:$lineno' style.
 Bug: #18901
 Reported-by: Clemens Ruck <clemens.ruck@t-online.de>
 Author: Tom Lane <tgl@sss.pgh.pa.us>
-Discussion: https://postgr.es/m/18901-424272abe01357e6@postgresql.org_|_
+Discussion: https://postgr.es/m/18901-424272abe01357e6@postgresql.org_|_Properly prepare varinfos in estimate_multivariate_bucketsize()
+
+To estimate with extended statistics, we need to clear the varnullingrels
+field in the expression, and duplicates are not allowed in the GroupVarInfo
+list.  We might re-use add_unique_group_var(), but we don't do so for two
+reasons.
+
+  1) We must keep the origin_rinfos list ordered exactly the same way as
+     varinfos.
+  2) add_unique_group_var() is designed for estimate_num_groups(), where a
+     larger number of groups is worse.   While estimating the number of hash
+     buckets, we have the opposite: a lesser number of groups is worse.
+     Therefore, we don't have to remove "known equal" vars: the removed var
+     may valuably contribute to the multivariate statistics to grow the number
+     of groups.
+
+This commit adds custom code to estimate_multivariate_bucketsize() to
+initialize varinfos properly.
+
+Reported-by: Robins Tharakan <tharakan@gmail.com>
+Discussion: https://postgr.es/m/18885-da51324078588253%40postgresql.org
+Author: Andrei Lepikhov <lepihov@gmail.com>
+Reviewed-by: David Rowley <dgrowleyml@gmail.com>
+Reviewed-by: Tomas Vondra <tomas@vondra.me>
+Reviewed-by: Alexander Korotkov <aekorotkov@gmail.com>_|_Change the names generated for child foreign key constraints.
+
+When a foreign key constraint is placed on a partitioned table, we
+actually make two pg_constraint entries associated with that table.
+(I have my doubts about the wisdom of that, but it's been like that
+since v12 and post-feature-freeze is no time to be messing with such
+entrenched decisions.)  The second "child" entry always had a name
+generated according to the default rule, "table_column(s)_fkey[nnn]",
+even if the primary entry had an unrelated user-specified name.  The
+trouble with doing that is that the default name could collide with
+the user-specified name of some other constraint on the same table.
+While we were willing to adjust the generated name to avoid
+collisions, that only helps if it's made second; if it's made first
+then creation of the other constraint would fail, potentially causing
+dump/reload or pg_upgrade failures.
+
+The core of the problem here is that we're infringing on user
+namespace, so I doubt that there's any 100% solution other than to
+find a way to not need the "child" entry.  In the meantime, it seems
+like it'd be an improvement to make the child's name be the name of
+the parent constraint with an underscore and digit(s) appended as
+necessary to make it unique.  This rule can in theory fail in the same
+way, but it seems much less probable; for one thing, this rule is
+guaranteed not to match primary entries having auto-generated names.
+(While an auto-generated primary name isn't user-specified to begin
+with, it acts like that during dump/reload, so collisions against such
+names are definitely possible.)
+
+An additional bonus, visible in some of the regression test cases
+that change here, arises from the fact that some error messages
+cite the child constraint's name not the parent's.  In the
+previous approach the two names could be completely unrelated,
+leading to user confusion --- the more so since psql's \d command
+hides child constraints.  With this approach it's hopefully much
+clearer which constraint-the-user-knows-about is failing.
+
+However, that does mean that there's user-visible behavior change
+occurring here, making it seem like not something to back-patch.
+I feel it's not too late for v18, though.
+
+Reported-by: Kirill Reshke <reshkekirill@gmail.com>
+Author: Tom Lane <tgl@sss.pgh.pa.us>
+Reviewed-by: Alvaro Herrera <alvherre@kurilemu.de>
+Discussion: https://postgr.es/m/CALdSSPhGitjpTfzEMJN-Y2x+Q-5QChSxAsmSJ1-E8mQJLkHOqQ@mail.gmail.com_|_
