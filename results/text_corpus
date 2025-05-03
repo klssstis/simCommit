@@ -23943,4 +23943,62 @@ I feel it's not too late for v18, though.
 Reported-by: Kirill Reshke <reshkekirill@gmail.com>
 Author: Tom Lane <tgl@sss.pgh.pa.us>
 Reviewed-by: Alvaro Herrera <alvherre@kurilemu.de>
-Discussion: https://postgr.es/m/CALdSSPhGitjpTfzEMJN-Y2x+Q-5QChSxAsmSJ1-E8mQJLkHOqQ@mail.gmail.com_|_
+Discussion: https://postgr.es/m/CALdSSPhGitjpTfzEMJN-Y2x+Q-5QChSxAsmSJ1-E8mQJLkHOqQ@mail.gmail.com_|_Handle self-referencing FKs correctly in partitioned tables
+
+For self-referencing foreign keys in partitioned tables, we weren't
+handling creation of pg_constraint rows during CREATE TABLE PARTITION AS
+as well as ALTER TABLE ATTACH PARTITION.  This is an old bug -- mostly,
+we broke this in 614a406b4ff1 while trying to fix it (so 12.13, 13.9,
+14.6 and 15.0 and up all behave incorrectly).  This commit reverts part
+of that with additional fixes for full correctness, and installs more
+tests to verify the parts we broke, not just the catalog contents but
+also the user-visible behavior.
+
+Backpatch to all live branches.  In branches 13 and 14, commit
+46a8c27a7226 changed the behavior during DETACH to drop a FK
+constraint rather than trying to repair it, because the complete fix of
+repairing catalog constraints was problematic due to lack of previous
+fixes.  For this reason, the test behavior in those branches is a bit
+different.  However, as best as I can tell, the fix works correctly
+there.
+
+In release notes we have to recommend that all self-referencing foreign
+keys on partitioned tables be recreated if partitions have been created
+or attached after the FK was created, keeping in mind that violating
+rows might already be present on the referencing side.
+
+Reported-by: Guillaume Lelarge <guillaume@lelarge.info>
+Reported-by: Matthew Gabeler-Lee <fastcat@gmail.com>
+Reported-by: Luca Vallisa <luca.vallisa@gmail.com>
+Discussion: https://postgr.es/m/CAECtzeWHCA+6tTcm2Oh2+g7fURUJpLZb-=pRXgeWJ-Pi+VU=_w@mail.gmail.com
+Discussion: https://postgr.es/m/18156-a44bc7096f0683e6@postgresql.org
+Discussion: https://postgr.es/m/CAAT=myvsiF-Attja5DcWoUWh21R12R-sfXECY2-3ynt8kaOqjw@mail.gmail.com_|_Handle self-referencing FKs correctly in partitioned tables
+
+For self-referencing foreign keys in partitioned tables, we weren't
+handling creation of pg_constraint rows during CREATE TABLE PARTITION AS
+as well as ALTER TABLE ATTACH PARTITION.  This is an old bug -- mostly,
+we broke this in 614a406b4ff1 while trying to fix it (so 12.13, 13.9,
+14.6 and 15.0 and up all behave incorrectly).  This commit reverts part
+of that with additional fixes for full correctness, and installs more
+tests to verify the parts we broke, not just the catalog contents but
+also the user-visible behavior.
+
+Backpatch to all live branches.  In branches 13 and 14, commit
+46a8c27a7226 changed the behavior during DETACH to drop a FK
+constraint rather than trying to repair it, because the complete fix of
+repairing catalog constraints was problematic due to lack of previous
+fixes.  For this reason, the test behavior in those branches is a bit
+different.  However, as best as I can tell, the fix works correctly
+there.
+
+In release notes we have to recommend that all self-referencing foreign
+keys on partitioned tables be recreated if partitions have been created
+or attached after the FK was created, keeping in mind that violating
+rows might already be present on the referencing side.
+
+Reported-by: Guillaume Lelarge <guillaume@lelarge.info>
+Reported-by: Matthew Gabeler-Lee <fastcat@gmail.com>
+Reported-by: Luca Vallisa <luca.vallisa@gmail.com>
+Discussion: https://postgr.es/m/CAECtzeWHCA+6tTcm2Oh2+g7fURUJpLZb-=pRXgeWJ-Pi+VU=_w@mail.gmail.com
+Discussion: https://postgr.es/m/18156-a44bc7096f0683e6@postgresql.org
+Discussion: https://postgr.es/m/CAAT=myvsiF-Attja5DcWoUWh21R12R-sfXECY2-3ynt8kaOqjw@mail.gmail.com_|_
