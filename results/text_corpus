@@ -24001,4 +24001,46 @@ Reported-by: Matthew Gabeler-Lee <fastcat@gmail.com>
 Reported-by: Luca Vallisa <luca.vallisa@gmail.com>
 Discussion: https://postgr.es/m/CAECtzeWHCA+6tTcm2Oh2+g7fURUJpLZb-=pRXgeWJ-Pi+VU=_w@mail.gmail.com
 Discussion: https://postgr.es/m/18156-a44bc7096f0683e6@postgresql.org
-Discussion: https://postgr.es/m/CAAT=myvsiF-Attja5DcWoUWh21R12R-sfXECY2-3ynt8kaOqjw@mail.gmail.com_|_
+Discussion: https://postgr.es/m/CAAT=myvsiF-Attja5DcWoUWh21R12R-sfXECY2-3ynt8kaOqjw@mail.gmail.com_|_Track the number of presorted outer pathkeys in MergePath
+
+When creating an explicit Sort node for the outer path of a mergejoin,
+we need to determine the number of presorted keys of the outer path to
+decide whether explicit incremental sort can be applied.  Currently,
+this is done by repeatedly calling pathkeys_count_contained_in.
+
+This patch caches the number of presorted outer pathkeys in MergePath,
+allowing us to save several calls to pathkeys_count_contained_in.  It
+can be considered a complement to the changes in commit 828e94c9d.
+
+Reported-by: David Rowley <dgrowleyml@gmail.com>
+Author: Richard Guo <guofenglinux@gmail.com>
+Reviewed-by: Tender Wang <tndrwang@gmail.com>
+Discussion: https://postgr.es/m/CAApHDvqvBireB_w6x8BN5txdvBEHxVgZBt=rUnpf5ww5P_E_ww@mail.gmail.com_|_Suppress unnecessary explicit sorting for EPQ mergejoin path
+
+When building a ForeignPath for a joinrel, if there's a possibility
+that EvalPlanQual will be executed, we must identify a suitable path
+for EPQ checks.  If the outer or inner path of the chosen path is a
+ForeignPath representing a pushed-down join, we replace it with its
+fdw_outerpath to ensure that the EPQ check path consists entirely of
+local joins.
+
+If the chosen path is a MergePath, and its outer or inner path is a
+ForeignPath that is not already well enough ordered, the MergePath
+will have non-NIL outersortkeys or innersortkeys indicating the
+desired ordering to be created by an explicit Sort node.  If we then
+replace the outer or inner path with its corresponding fdw_outerpath,
+and that path is already sufficiently ordered, we end up in an
+inconsistent state: the MergePath has non-NIL outersortkeys or
+innersortkeys, and its input path is already properly ordered.  This
+inconsistency can result in an Assert failure or the addition of a
+redundant Sort node.
+
+To fix, check if the new outer or inner path of a MergePath is already
+properly sorted, and set its outersortkeys or innersortkeys to NIL if
+so.
+
+Bug: #18902
+Reported-by: Nikita Kalinin <n.kalinin@postgrespro.ru>
+Author: Richard Guo <guofenglinux@gmail.com>
+Reviewed-by: Tender Wang <tndrwang@gmail.com>
+Discussion: https://postgr.es/m/18902-71c1bed2b9f7c46f@postgresql.org_|_
