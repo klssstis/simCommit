@@ -24043,4 +24043,14 @@ Bug: #18902
 Reported-by: Nikita Kalinin <n.kalinin@postgrespro.ru>
 Author: Richard Guo <guofenglinux@gmail.com>
 Reviewed-by: Tender Wang <tndrwang@gmail.com>
-Discussion: https://postgr.es/m/18902-71c1bed2b9f7c46f@postgresql.org_|_
+Discussion: https://postgr.es/m/18902-71c1bed2b9f7c46f@postgresql.org_|_Remove GLOBALTABLESPACE_OID assert for locked buffers.
+
+Commit f4ece891fc2f3f96f0571720a1ae30db8030681b added the assertion in
+an attempt to catch some defects even after VACUUM FULL or REINDEX.
+However, IsCatalogTextUniqueIndexOid(tag.relNumber) always returns false
+after a relfilenode change, provoking unintended assertion failures.
+
+Reported-by: Adam Guo <adamguo@amazon.com>
+Reviewed-by: Masahiko Sawada <sawada.mshk@gmail.com>
+Bug: #18912
+Discussion: https://postgr.es/m/18912-a41c9bd0e0ad19b1@postgresql.org_|_
