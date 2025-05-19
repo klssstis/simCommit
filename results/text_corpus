@@ -18709,4 +18709,21 @@ handling ...
 This is pretty ancient, so backpatch all the way back.
 
 Author: Michael Paquier and Álvaro Herrera
-Discussion: https://www.postgresql.org/message-id/CAFrbyQwyLDYXfBOhPfoBGqnvuZO_Y90YgqFM11T2jvnxjLFmqw@mail.gmail.com_|_
+Discussion: https://www.postgresql.org/message-id/CAFrbyQwyLDYXfBOhPfoBGqnvuZO_Y90YgqFM11T2jvnxjLFmqw@mail.gmail.com_|_Fix tuple_fraction calculation in generate_orderedappend_paths()
+
+6b94e7a6da adjusted generate_orderedappend_paths() to consider fractional
+paths.  However, it didn't manage to interpret the tuple_fraction value
+correctly.  According to the header comment of grouping_planner(), the
+tuple_fraction >= 1 specifies the absolute number of expected tuples.  That
+number must be divided by the expected total number of tuples to get the
+actual fraction.
+
+Even though this is a bug fix, we don't backpatch it.  The risks of the side
+effects of plan changes on stable branches are too high.
+
+Reported-by: Andrei Lepikhov <lepihov@gmail.com>
+Discussion: https://postgr.es/m/3ca271fa-ca5c-458c-8934-eb148622b270%40gmail.com
+Author: Andrei Lepikhov <lepihov@gmail.com>
+Reviewed-by: Junwang Zhao <zhjwpku@gmail.com>
+Reviewed-by: Alvaro Herrera <alvherre@alvh.no-ip.org>
+Reviewed-by: Tom Lane <tgl@sss.pgh.pa.us>_|_
