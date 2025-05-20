@@ -18726,4 +18726,26 @@ Discussion: https://postgr.es/m/3ca271fa-ca5c-458c-8934-eb148622b270%40gmail.com
 Author: Andrei Lepikhov <lepihov@gmail.com>
 Reviewed-by: Junwang Zhao <zhjwpku@gmail.com>
 Reviewed-by: Alvaro Herrera <alvherre@alvh.no-ip.org>
-Reviewed-by: Tom Lane <tgl@sss.pgh.pa.us>_|_
+Reviewed-by: Tom Lane <tgl@sss.pgh.pa.us>_|_Fix cross-version upgrade test failure
+
+Commit 29f7ce6fe7 added another view that needs adjustment in the
+cross-version upgrade test. This should fix the XversionUpgrade
+failures in the buildfarm.
+
+Backpatch-through: 16
+Discussion: https://www.postgresql.org/message-id/18929-077d6b7093b176e2@postgresql.org_|_Fix deparsing FETCH FIRST <expr> ROWS WITH TIES
+
+In the grammar, <expr> is a c_expr, which accepts only a limited set
+of integer literals and simple expressions without parens. The
+deparsing logic didn't quite match the grammar rule, and failed to use
+parens e.g. for "5::bigint".
+
+To fix, always surround the expression with parens. Would be nice to
+omit the parens in simple cases, but unfortunately it's non-trivial to
+detect such simple cases. Even if the expression is a simple literal
+123 in the original query, after parse analysis it becomes a FuncExpr
+with COERCE_IMPLICIT_CAST rather than a simple Const.
+
+Reported-by: yonghao lee
+Backpatch-through: 13
+Discussion: https://www.postgresql.org/message-id/18929-077d6b7093b176e2@postgresql.org_|_
