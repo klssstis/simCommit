@@ -18748,4 +18748,33 @@ with COERCE_IMPLICIT_CAST rather than a simple Const.
 
 Reported-by: yonghao lee
 Backpatch-through: 13
-Discussion: https://www.postgresql.org/message-id/18929-077d6b7093b176e2@postgresql.org_|_
+Discussion: https://www.postgresql.org/message-id/18929-077d6b7093b176e2@postgresql.org_|_pg_dump: Fix array literals in fetchAttributeStats().
+
+Presently, fetchAttributeStats() builds array literals by treating
+the elements as SQL identifiers.  This is incorrect for a couple of
+reasons:
+
+* Array literal content must match the external text representation
+  of the array, i.e., what array_out() would return.  One notable
+  problem is that double quotes are escaped with "" in identifiers
+  but with \" in array literals.  To fix, build the array content
+  using the pre-existing appendPGArray() function.
+
+* Array literals must be written as string constants.  A notable
+  problem here is that single quotes are escaped via '' in strings
+  but are not escaped in the text representation of an array.  To
+  fix, append the aforementioned array literal content to the query
+  with appendStringLiteralAH().
+
+While at it, modify a test case to use an identifier that would
+cause the test to fail without this change.
+
+Oversight in commit 9c02e3a986.
+
+Reported-by: Philippe Beaudoin <pbh.emaj@free.fr>
+Author: Jian He <jian.universality@gmail.com>
+Co-authored-by: Nathan Bossart <nathandbossart@gmail.com>
+Co-authored-by: Stepan Neretin <slpmcf@gmail.com>
+Reviewed-by: Tom Lane <tgl@sss.pgh.pa.us>
+Bug: #18923
+Discussion: https://postgr.es/m/18923-e79273f87c6bed69%40postgresql.org_|_
