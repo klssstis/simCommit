@@ -18777,4 +18777,32 @@ Co-authored-by: Nathan Bossart <nathandbossart@gmail.com>
 Co-authored-by: Stepan Neretin <slpmcf@gmail.com>
 Reviewed-by: Tom Lane <tgl@sss.pgh.pa.us>
 Bug: #18923
-Discussion: https://postgr.es/m/18923-e79273f87c6bed69%40postgresql.org_|_
+Discussion: https://postgr.es/m/18923-e79273f87c6bed69%40postgresql.org_|_Adjust regex for test with opening parenthesis in character classes
+
+As written, the test was throwing an error because of an unbalanced
+parenthesis.  The regex used in the test is adjusted to not fail and to
+test the case of an opening parenthesis in a character class after some
+nested square brackets.
+
+Oversight in d46911e584d4.
+
+Discussion: https://postgr.es/m/16ab039d1af455652bdf4173402ddda145f2c73b.camel@cybertec.at_|_Fix conversion of SIMILAR TO regexes for character classes
+
+The code that translates SIMILAR TO pattern matching expressions to
+POSIX-style regular expressions did not consider that square brackets
+can be nested.  For example, in an expression like [[:alpha:]%_], the
+logic replaced the placeholders '_' and '%' but it should not.
+
+This commit fixes the conversion logic by tracking the nesting level of
+square brackets marking character class areas, while considering that
+in expressions like []] or [^]] the first closing square bracket is a
+regular character.  Multiple tests are added to show how the conversions
+should or should not apply applied while in a character class area, with
+specific cases added for all the characters converted outside character
+classes like an opening parenthesis '(', dollar sign '$', etc.
+
+Author: Laurenz Albe <laurenz.albe@cybertec.at>
+Reviewed-by: Tom Lane <tgl@sss.pgh.pa.us>
+Reviewed-by: Michael Paquier <michael@paquier.xyz>
+Discussion: https://postgr.es/m/16ab039d1af455652bdf4173402ddda145f2c73b.camel@cybertec.at
+Backpatch-through: 13_|_
