@@ -18805,4 +18805,94 @@ Author: Laurenz Albe <laurenz.albe@cybertec.at>
 Reviewed-by: Tom Lane <tgl@sss.pgh.pa.us>
 Reviewed-by: Michael Paquier <michael@paquier.xyz>
 Discussion: https://postgr.es/m/16ab039d1af455652bdf4173402ddda145f2c73b.camel@cybertec.at
+Backpatch-through: 13_|_Ensure we have a snapshot when updating various system catalogs.
+
+A few places that access system catalogs don't set up an active
+snapshot before potentially accessing their TOAST tables.  To fix,
+push an active snapshot just before each section of code that might
+require accessing one of these TOAST tables, and pop it shortly
+afterwards.  While at it, this commit adds some rather strict
+assertions in an attempt to prevent such issues in the future.
+
+Commit 16bf24e0e4 recently removed pg_replication_origin's TOAST
+table in order to fix the same problem for that catalog.  On the
+back-branches, those bugs are left in place.  We cannot easily
+remove a catalog's TOAST table on released major versions, and only
+replication origins with extremely long names are affected.  Given
+the low severity of the issue, fixing older versions doesn't seem
+worth the trouble of significantly modifying the patch.
+
+Also, on v13 and v14, the aforementioned strict assertions have
+been omitted because commit 2776922201, which added
+HaveRegisteredOrActiveSnapshot(), was not back-patched.  While we
+could probably back-patch it now, I've opted against it because it
+seems unlikely that new TOAST snapshot issues will be introduced in
+the oldest supported versions.
+
+Reported-by: Alexander Lakhin <exclusion@gmail.com>
+Reviewed-by: Michael Paquier <michael@paquier.xyz>
+Discussion: https://postgr.es/m/18127-fe54b6a667f29658%40postgresql.org
+Discussion: https://postgr.es/m/18309-c0bf914950c46692%40postgresql.org
+Discussion: https://postgr.es/m/ZvMSUPOqUU-VNADN%40nathan
+Backpatch-through: 13_|_Ensure we have a snapshot when updating various system catalogs.
+
+A few places that access system catalogs don't set up an active
+snapshot before potentially accessing their TOAST tables.  To fix,
+push an active snapshot just before each section of code that might
+require accessing one of these TOAST tables, and pop it shortly
+afterwards.  While at it, this commit adds some rather strict
+assertions in an attempt to prevent such issues in the future.
+
+Commit 16bf24e0e4 recently removed pg_replication_origin's TOAST
+table in order to fix the same problem for that catalog.  On the
+back-branches, those bugs are left in place.  We cannot easily
+remove a catalog's TOAST table on released major versions, and only
+replication origins with extremely long names are affected.  Given
+the low severity of the issue, fixing older versions doesn't seem
+worth the trouble of significantly modifying the patch.
+
+Also, on v13 and v14, the aforementioned strict assertions have
+been omitted because commit 2776922201, which added
+HaveRegisteredOrActiveSnapshot(), was not back-patched.  While we
+could probably back-patch it now, I've opted against it because it
+seems unlikely that new TOAST snapshot issues will be introduced in
+the oldest supported versions.
+
+Reported-by: Alexander Lakhin <exclusion@gmail.com>
+Reviewed-by: Michael Paquier <michael@paquier.xyz>
+Discussion: https://postgr.es/m/18127-fe54b6a667f29658%40postgresql.org
+Discussion: https://postgr.es/m/18309-c0bf914950c46692%40postgresql.org
+Discussion: https://postgr.es/m/ZvMSUPOqUU-VNADN%40nathan
+Backpatch-through: 13_|_Allow larger packets during GSSAPI authentication exchange.
+
+Our GSSAPI code only allows packet sizes up to 16kB.  However it
+emerges that during authentication, larger packets might be needed;
+various authorities suggest 48kB or 64kB as the maximum packet size.
+This limitation caused login failure for AD users who belong to many
+AD groups.  To add insult to injury, we gave an unintelligible error
+message, typically "GSSAPI context establishment error: The routine
+must be called again to complete its function: Unknown error".
+
+As noted in code comments, the 16kB packet limit is effectively a
+protocol constant once we are doing normal data transmission: the
+GSSAPI code splits the data stream at those points, and if we change
+the limit then we will have cross-version compatibility problems
+due to the receiver's buffer being too small in some combinations.
+However, during the authentication exchange the packet sizes are
+not determined by us, but by the underlying GSSAPI library.  So we
+might as well just try to send what the library tells us to.
+An unpatched recipient will fail on a packet larger than 16kB,
+but that's not worse than the sender failing without even trying.
+So this doesn't introduce any meaningful compatibility problem.
+
+We still need a buffer size limit, but we can easily make it be
+64kB rather than 16kB until transport negotiation is complete.
+(Larger values were discussed, but don't seem likely to add
+anything.)
+
+Reported-by: Chris Gooch <cgooch@bamfunds.com>
+Fix-suggested-by: Jacob Champion <jacob.champion@enterprisedb.com>
+Author: Tom Lane <tgl@sss.pgh.pa.us>
+Reviewed-by: Jacob Champion <jacob.champion@enterprisedb.com>
+Discussion: https://postgr.es/m/DS0PR22MB5971A9C8A3F44BCC6293C4DABE99A@DS0PR22MB5971.namprd22.prod.outlook.com
 Backpatch-through: 13_|_
