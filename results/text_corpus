@@ -18895,4 +18895,30 @@ Fix-suggested-by: Jacob Champion <jacob.champion@enterprisedb.com>
 Author: Tom Lane <tgl@sss.pgh.pa.us>
 Reviewed-by: Jacob Champion <jacob.champion@enterprisedb.com>
 Discussion: https://postgr.es/m/DS0PR22MB5971A9C8A3F44BCC6293C4DABE99A@DS0PR22MB5971.namprd22.prod.outlook.com
-Backpatch-through: 13_|_
+Backpatch-through: 13_|_Use replay LSN as target for cascading logical WAL senders
+
+A cascading WAL sender doing logical decoding (as known as doing its
+work on a standby) has been using as flush LSN the value returned by
+GetStandbyFlushRecPtr() (last position safely flushed to disk).  This is
+incorrect as such processes are only able to decode changes up to the
+LSN that has been replayed by the startup process.
+
+This commit changes cascading logical WAL senders to use the replay LSN,
+as returned by GetXLogReplayRecPtr().  This distinction is important
+particularly during shutdown, when WAL senders need to send any
+remaining available data to their clients, switching WAL senders to a
+caught-up state.  Using the latest flush LSN rather than the replay LSN
+could cause the WAL senders to be stuck in an infinite loop preventing
+them to shut down, as the startup process does not run when WAL senders
+attempt to catch up, so they could keep waiting for work that would
+never happen.
+
+Backpatch down to v16, where logical decoding on standbys has been
+introduced.
+
+Author: Alexey Makhmutov <a.makhmutov@postgrespro.ru>
+Reviewed-by: Ajin Cherian <itsajin@gmail.com>
+Reviewed-by: Bertrand Drouvot <bertranddrouvot.pg@gmail.com>
+Reviewed-by: Michael Paquier <michael@paquier.xyz>
+Discussion: https://postgr.es/m/52138028-7246-421c-9161-4fa108b88070@postgrespro.ru
+Backpatch-through: 16_|_
