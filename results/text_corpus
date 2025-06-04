@@ -18921,4 +18921,53 @@ Reviewed-by: Ajin Cherian <itsajin@gmail.com>
 Reviewed-by: Bertrand Drouvot <bertranddrouvot.pg@gmail.com>
 Reviewed-by: Michael Paquier <michael@paquier.xyz>
 Discussion: https://postgr.es/m/52138028-7246-421c-9161-4fa108b88070@postgrespro.ru
-Backpatch-through: 16_|_
+Backpatch-through: 16_|_Don't strip $libdir from LOAD command
+
+Commit 4f7f7b03758 implemented the extension_control_path GUC, and to
+make it work it was decided that we should strip the $libdir/ on
+module_pathname from .control files, so that extensions don't need to
+worry about this change.
+
+This strip logic was implemented on expand_dynamic_library_name()
+which works fine when executing the SQL functions from extensions, but
+this function is also called when the LOAD command is executed, and
+since the user may explicitly pass the $libdir prefix on LOAD
+parameter, we should not strip in this case.
+
+This commit fixes this issue by moving the strip logic from
+expand_dynamic_library_name() to load_external_function() that is
+called when the running the SQL script from extensions.
+
+Reported-by: Evan Si <evsi@amazon.com>
+Author: Matheus Alcantara <matheusssilv97@gmail.com>
+Reviewed-by: Nathan Bossart <nathandbossart@gmail.com>
+Reviewed-by: Rahila Syed <rahilasyed90@gmail.com>
+Bug: #18920
+Discussion: https://www.postgresql.org/message-id/flat/18920-b350b1c0a30af006%40postgresql.org_|_psql: Abort connection when using \syncpipeline after COPY TO/FROM
+
+When the backend reads COPY data, it ignores all sync messages, as per
+c01641f8aed0.  With psql pipelines, it is possible to manually send sync
+messages with \sendpipeline which leaves the frontend in an
+unrecoverable state as the backend will not send the necessary
+ReadyForQuery message that is expected to feed psql result consumption
+logic.
+
+It could be possible to artificially reduce the piped_syncs and
+requested_results, however libpq's state would still have queued sync
+messages in its command queue, and the only way to consume those without
+directly calling pqCommandQueueAdvance() is to process ReadyForQuery
+messages that won't be sent since the backend ignores these.  Perhaps
+this could be improved in the future, but I am not really excited about
+introducing this amount of complications in libpq to manipulate the
+message queues without a better use case to support it.
+
+Hence, this patch aborts the connection if we detect excessive sync
+messages after a COPY in a pipeline to avoid staying in an inconsistent
+protocol state, which is the best thing we can do with pipelines in
+psql for now.  Note that this change does not prevent wrapping a set
+of queries inside a block made of \startpipeline and \endpipeline, only
+the use of \syncpipeline for a COPY.
+
+Reported-by: Nikita Kalinin <n.kalinin@postgrespro.ru>
+Author: Anthonin Bonnefoy <anthonin.bonnefoy@datadoghq.com>
+Discussion: https://postgr.es/m/18944-8a926c30f68387dd@postgresql.org_|_
