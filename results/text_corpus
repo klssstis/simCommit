@@ -18970,4 +18970,35 @@ the use of \syncpipeline for a COPY.
 
 Reported-by: Nikita Kalinin <n.kalinin@postgrespro.ru>
 Author: Anthonin Bonnefoy <anthonin.bonnefoy@datadoghq.com>
-Discussion: https://postgr.es/m/18944-8a926c30f68387dd@postgresql.org_|_
+Discussion: https://postgr.es/m/18944-8a926c30f68387dd@postgresql.org_|_Don't reduce output request size on non-Unix-socket connections.
+
+Traditionally, libpq's pqPutMsgEnd has rounded down the amount-to-send
+to be a multiple of 8K when it is eagerly writing some data.  This
+still seems like a good idea when sending through a Unix socket, as
+pipes typically have a buffer size of 8K or some fraction/multiple of
+that.  But there's not much argument for it on a TCP connection, since
+(a) standard MTU values are not commensurate with that, and (b) the
+kernel typically applies its own packet splitting/merging logic.
+
+Worse, our SSL and GSSAPI code paths both have API stipulations that
+if they fail to send all the data that was offered in the previous
+write attempt, we mustn't offer less data in the next attempt; else
+we may get "SSL error: bad length" or "GSSAPI caller failed to
+retransmit all data needing to be retried".  The previous write
+attempt might've been pqFlush attempting to send everything in the
+buffer, so pqPutMsgEnd can't safely write less than the full buffer
+contents.  (Well, we could add some more state to track exactly how
+much the previous write attempt was, but there's little value evident
+in such extra complication.)  Hence, apply the round-down only on
+AF_UNIX sockets, where we never use SSL or GSSAPI.
+
+Interestingly, we had a very closely related bug report before,
+which I attempted to fix in commit d053a879b.  But the test case
+we had then seemingly didn't trigger this pqFlush-then-pqPutMsgEnd
+scenario, or at least we failed to recognize this variant of the bug.
+
+Bug: #18907
+Reported-by: Dorjpalam Batbaatar <htgn.dbat.95@gmail.com>
+Author: Tom Lane <tgl@sss.pgh.pa.us>
+Discussion: https://postgr.es/m/18907-d41b9bcf6f29edda@postgresql.org
+Backpatch-through: 13_|_
