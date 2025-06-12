@@ -19001,4 +19001,32 @@ Bug: #18907
 Reported-by: Dorjpalam Batbaatar <htgn.dbat.95@gmail.com>
 Author: Tom Lane <tgl@sss.pgh.pa.us>
 Discussion: https://postgr.es/m/18907-d41b9bcf6f29edda@postgresql.org
-Backpatch-through: 13_|_
+Backpatch-through: 13_|_Revert support for improved tracking of nested queries
+
+This commit reverts the two following commits:
+- 499edb09741b, track more precisely query locations for nested
+statements.
+- 06450c7b8c70, a follow-up fix of 499edb09741b with query locations.
+The test introduced in this commit is not reverted.  This is proving
+useful to track a problem that only pgaudit was able to detect.
+
+These prove to have issues with the tracking of SELECT statements, when
+these use multiple parenthesis which is something supported by the
+grammar.  Incorrect location and lengths are causing pg_stat_statements
+to become confused, failing its job in query normalization with
+potential out-of-bound writes because the location and the length may
+not match with what can be handled.  A lot of the query patterns
+discussed when this issue was reported have no test coverage in the main
+regression test suite, or the recovery test 027_stream_regress.pl would
+have caught the problems as pg_stat_statements is loaded by the node
+running the regression tests.  A first step would be to improve the test
+coverage to stress more the query normalization logic.
+
+A different portion of this work was done in 45e0ba30fc40, with the
+addition of tests for nested queries.  These can be left in the tree.
+They are useful to track the way inner queries are currently tracked by
+PGSS with non-top-level entries, and will be useful when reconsidering
+in the future the work reverted here.
+
+Reported-by: Alexander Kozhemyakin <a.kozhemyakin@postgrespro.ru>
+Discussion: https://postgr.es/m/18947-cdd2668beffe02bf@postgresql.org_|_
