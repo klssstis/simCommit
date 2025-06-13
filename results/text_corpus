@@ -19029,4 +19029,54 @@ PGSS with non-top-level entries, and will be useful when reconsidering
 in the future the work reverted here.
 
 Reported-by: Alexander Kozhemyakin <a.kozhemyakin@postgrespro.ru>
-Discussion: https://postgr.es/m/18947-cdd2668beffe02bf@postgresql.org_|_
+Discussion: https://postgr.es/m/18947-cdd2668beffe02bf@postgresql.org_|_psql: Forbid use of COPY and \copy while in a pipeline
+
+Running COPY within a pipeline can break protocol synchronization in
+multiple ways.  psql is limited in terms of result processing if mixing
+COPY commands with normal queries while controlling a pipeline with the
+new meta-commands, as an effect of the following reasons:
+- In COPY mode, the backend ignores additional Sync messages and will
+not send a matching ReadyForQuery expected by the frontend.  Doing a
+\syncpipeline just after COPY will leave the frontend waiting for a
+ReadyForQuery message that won't be sent, leaving psql out-of-sync.
+- libpq automatically sends a Sync with the Copy message which is not
+tracked in the command queue, creating an unexpected synchronisation
+point that psql cannot really know about.  While it is possible to track
+such activity for a \copy, this cannot really be done sanely with plain
+COPY queries.  Backend failures during a COPY would leave the pipeline
+in an aborted state while the backend would be in a clean state, ready
+to process commands.
+
+At the end, fixing those issues would require modifications in how libpq
+handles pipeline and COPY.  So, rather than implementing workarounds in
+psql to shortcut the libpq internals (with command queue handling for
+one), and because meta-commands for pipelines in psql are a new feature
+with COPY in a pipeline having a limited impact compared to other
+queries, this commit forbids the use of COPY within a pipeline to avoid
+possible break of protocol synchronisation within psql.  If there is a
+use-case for COPY support within pipelines in libpq, this could always
+be added in the future, if necessary.
+
+Most of the changes of this commit impacts the tests for psql pipelines,
+removing the tests related to COPY.  Some TAP tests still exist for COPY
+TO/FROM and \copy to/from, to check that that connections are aborted
+when this operation is attempted.
+
+Reported-by: Nikita Kalinin <n.kalinin@postgrespro.ru>
+Author: Anthonin Bonnefoy <anthonin.bonnefoy@datadoghq.com>
+Discussion: https://postgr.es/m/AC468509-06E8-4E2A-A4B1-63046A4AC6AB@postgrespro.ru_|_pg_restore: Fix wrong descriptions of --with-{schema,data,statistics} options.
+
+Commit bde2fb797aa added the --with-schema, --with-data, and --with-statistics
+options to pg_restore. These options control whether to restore schema, data,
+or statistics if present in the archive. However, the help message and
+documentation incorrectly described them as affecting what gets dumped.
+
+This commit corrects those descriptions to clarify that the options control
+restoration, not dumping.
+
+Bug: #18952
+Reported-by: TAKATSUKA Haruka <harukat@sraoss.co.jp>
+Author: Fujii Masao <masao.fujii@gmail.com>
+Reviewed-by: TAKATSUKA Haruka <harukat@sraoss.co.jp>
+Reviewed-by: Daniel Gustafsson <daniel@yesql.se>
+Discussion: https://postgr.es/m/18952-be40a620f8b1e755@postgresql.org_|_
