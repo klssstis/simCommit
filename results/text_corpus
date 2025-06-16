@@ -19079,4 +19079,15 @@ Reported-by: TAKATSUKA Haruka <harukat@sraoss.co.jp>
 Author: Fujii Masao <masao.fujii@gmail.com>
 Reviewed-by: TAKATSUKA Haruka <harukat@sraoss.co.jp>
 Reviewed-by: Daniel Gustafsson <daniel@yesql.se>
-Discussion: https://postgr.es/m/18952-be40a620f8b1e755@postgresql.org_|_
+Discussion: https://postgr.es/m/18952-be40a620f8b1e755@postgresql.org_|_Workaround code generation bug in clang
+
+At optimization level -O0, builds on recent clang fail to produce the
+correct CRC32C with our AVX-512 implementation. For now, just disable
+the runtime check for clang at -O0. When this is fixed upstream and we
+know the extent of the breakage, we can adjust to be version-specific.
+
+Reported-by: Soumyadeep Chakraborty <soumyadeep2007@gmail.com>
+Reported-by: Andy Fan <zhihuifan1213@163.com>
+Tested-by: Andy Fan <zhihuifan1213@163.com>
+Discussion: https://postgr.es/m/CAE-ML%2B-OV6p9uvCFBcSQjZUEh__y0h-KjN%2BBseyGJHt7u8EP%2Bw%40mail.gmail.com
+Discussion: https://postgr.es/m/87o6uqd3iv.fsf%40163.com_|_
