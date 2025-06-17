@@ -19090,4 +19090,200 @@ Reported-by: Soumyadeep Chakraborty <soumyadeep2007@gmail.com>
 Reported-by: Andy Fan <zhihuifan1213@163.com>
 Tested-by: Andy Fan <zhihuifan1213@163.com>
 Discussion: https://postgr.es/m/CAE-ML%2B-OV6p9uvCFBcSQjZUEh__y0h-KjN%2BBseyGJHt7u8EP%2Bw%40mail.gmail.com
-Discussion: https://postgr.es/m/87o6uqd3iv.fsf%40163.com_|_
+Discussion: https://postgr.es/m/87o6uqd3iv.fsf%40163.com_|_Fix re-distributing previously distributed invalidation messages during logical decoding.
+
+Commit 4909b38af0 introduced logic to distribute invalidation messages
+from catalog-modifying transactions to all concurrent in-progress
+transactions. However, since each transaction distributes not only its
+original invalidation messages but also previously distributed
+messages to other transactions, this leads to an exponential increase
+in allocation request size for invalidation messages, ultimately
+causing memory allocation failure.
+
+This commit fixes this issue by tracking distributed invalidation
+messages separately per decoded transaction and not redistributing
+these messages to other in-progress transactions. The maximum size of
+distributed invalidation messages that one transaction can store is
+limited to MAX_DISTR_INVAL_MSG_PER_TXN (8MB). Once the size of the
+distributed invalidation messages exceeds this threshold, we
+invalidate all caches in locations where distributed invalidation
+messages need to be executed.
+
+Back-patch to all supported versions where we introduced the fix by
+commit 4909b38af0.
+
+Note that this commit adds two new fields to ReorderBufferTXN to store
+the distributed transactions. This change breaks ABI compatibility in
+back branches, affecting third-party extensions that depend on the
+size of the ReorderBufferTXN struct, though this scenario seems
+unlikely.
+
+Additionally, it adds a new flag to the txn_flags field of
+ReorderBufferTXN to indicate distributed invalidation message
+overflow. This should not affect existing implementations, as it is
+unlikely that third-party extensions use unused bits in the txn_flags
+field.
+
+Bug: #18938 #18942
+Author: vignesh C <vignesh21@gmail.com>
+Reported-by: Duncan Sands <duncan.sands@deepbluecap.com>
+Reported-by: John Hutchins <john.hutchins@wicourts.gov>
+Reported-by: Laurence Parry <greenreaper@hotmail.com>
+Reported-by: Max Madden <maxmmadden@gmail.com>
+Reported-by: Braulio Fdo Gonzalez <brauliofg@gmail.com>
+Reviewed-by: Masahiko Sawada <sawada.mshk@gmail.com>
+Reviewed-by: Amit Kapila <amit.kapila16@gmail.com>
+Reviewed-by: Hayato Kuroda <kuroda.hayato@fujitsu.com>
+Discussion: https://postgr.es/m/680bdaf6-f7d1-4536-b580-05c2760c67c6@deepbluecap.com
+Discussion: https://postgr.es/m/18942-0ab1e5ae156613ad@postgresql.org
+Discussion: https://postgr.es/m/18938-57c9a1c463b68ce0@postgresql.org
+Discussion: https://postgr.es/m/CAD1FGCT2sYrP_70RTuo56QTizyc+J3wJdtn2gtO3VttQFpdMZg@mail.gmail.com
+Discussion: https://postgr.es/m/CANO2=B=2BT1hSYCE=nuuTnVTnjidMg0+-FfnRnqM6kd23qoygg@mail.gmail.com
+Backpatch-through: 13_|_Fix re-distributing previously distributed invalidation messages during logical decoding.
+
+Commit 4909b38af0 introduced logic to distribute invalidation messages
+from catalog-modifying transactions to all concurrent in-progress
+transactions. However, since each transaction distributes not only its
+original invalidation messages but also previously distributed
+messages to other transactions, this leads to an exponential increase
+in allocation request size for invalidation messages, ultimately
+causing memory allocation failure.
+
+This commit fixes this issue by tracking distributed invalidation
+messages separately per decoded transaction and not redistributing
+these messages to other in-progress transactions. The maximum size of
+distributed invalidation messages that one transaction can store is
+limited to MAX_DISTR_INVAL_MSG_PER_TXN (8MB). Once the size of the
+distributed invalidation messages exceeds this threshold, we
+invalidate all caches in locations where distributed invalidation
+messages need to be executed.
+
+Back-patch to all supported versions where we introduced the fix by
+commit 4909b38af0.
+
+Note that this commit adds two new fields to ReorderBufferTXN to store
+the distributed transactions. This change breaks ABI compatibility in
+back branches, affecting third-party extensions that depend on the
+size of the ReorderBufferTXN struct, though this scenario seems
+unlikely.
+
+Additionally, it adds a new flag to the txn_flags field of
+ReorderBufferTXN to indicate distributed invalidation message
+overflow. This should not affect existing implementations, as it is
+unlikely that third-party extensions use unused bits in the txn_flags
+field.
+
+Bug: #18938 #18942
+Author: vignesh C <vignesh21@gmail.com>
+Reported-by: Duncan Sands <duncan.sands@deepbluecap.com>
+Reported-by: John Hutchins <john.hutchins@wicourts.gov>
+Reported-by: Laurence Parry <greenreaper@hotmail.com>
+Reported-by: Max Madden <maxmmadden@gmail.com>
+Reported-by: Braulio Fdo Gonzalez <brauliofg@gmail.com>
+Reviewed-by: Masahiko Sawada <sawada.mshk@gmail.com>
+Reviewed-by: Amit Kapila <amit.kapila16@gmail.com>
+Reviewed-by: Hayato Kuroda <kuroda.hayato@fujitsu.com>
+Discussion: https://postgr.es/m/680bdaf6-f7d1-4536-b580-05c2760c67c6@deepbluecap.com
+Discussion: https://postgr.es/m/18942-0ab1e5ae156613ad@postgresql.org
+Discussion: https://postgr.es/m/18938-57c9a1c463b68ce0@postgresql.org
+Discussion: https://postgr.es/m/CAD1FGCT2sYrP_70RTuo56QTizyc+J3wJdtn2gtO3VttQFpdMZg@mail.gmail.com
+Discussion: https://postgr.es/m/CANO2=B=2BT1hSYCE=nuuTnVTnjidMg0+-FfnRnqM6kd23qoygg@mail.gmail.com
+Backpatch-through: 13_|_Fix re-distributing previously distributed invalidation messages during logical decoding.
+
+Commit 4909b38af0 introduced logic to distribute invalidation messages
+from catalog-modifying transactions to all concurrent in-progress
+transactions. However, since each transaction distributes not only its
+original invalidation messages but also previously distributed
+messages to other transactions, this leads to an exponential increase
+in allocation request size for invalidation messages, ultimately
+causing memory allocation failure.
+
+This commit fixes this issue by tracking distributed invalidation
+messages separately per decoded transaction and not redistributing
+these messages to other in-progress transactions. The maximum size of
+distributed invalidation messages that one transaction can store is
+limited to MAX_DISTR_INVAL_MSG_PER_TXN (8MB). Once the size of the
+distributed invalidation messages exceeds this threshold, we
+invalidate all caches in locations where distributed invalidation
+messages need to be executed.
+
+Back-patch to all supported versions where we introduced the fix by
+commit 4909b38af0.
+
+Note that this commit adds two new fields to ReorderBufferTXN to store
+the distributed transactions. This change breaks ABI compatibility in
+back branches, affecting third-party extensions that depend on the
+size of the ReorderBufferTXN struct, though this scenario seems
+unlikely.
+
+Additionally, it adds a new flag to the txn_flags field of
+ReorderBufferTXN to indicate distributed invalidation message
+overflow. This should not affect existing implementations, as it is
+unlikely that third-party extensions use unused bits in the txn_flags
+field.
+
+Bug: #18938 #18942
+Author: vignesh C <vignesh21@gmail.com>
+Reported-by: Duncan Sands <duncan.sands@deepbluecap.com>
+Reported-by: John Hutchins <john.hutchins@wicourts.gov>
+Reported-by: Laurence Parry <greenreaper@hotmail.com>
+Reported-by: Max Madden <maxmmadden@gmail.com>
+Reported-by: Braulio Fdo Gonzalez <brauliofg@gmail.com>
+Reviewed-by: Masahiko Sawada <sawada.mshk@gmail.com>
+Reviewed-by: Amit Kapila <amit.kapila16@gmail.com>
+Reviewed-by: Hayato Kuroda <kuroda.hayato@fujitsu.com>
+Discussion: https://postgr.es/m/680bdaf6-f7d1-4536-b580-05c2760c67c6@deepbluecap.com
+Discussion: https://postgr.es/m/18942-0ab1e5ae156613ad@postgresql.org
+Discussion: https://postgr.es/m/18938-57c9a1c463b68ce0@postgresql.org
+Discussion: https://postgr.es/m/CAD1FGCT2sYrP_70RTuo56QTizyc+J3wJdtn2gtO3VttQFpdMZg@mail.gmail.com
+Discussion: https://postgr.es/m/CANO2=B=2BT1hSYCE=nuuTnVTnjidMg0+-FfnRnqM6kd23qoygg@mail.gmail.com
+Backpatch-through: 13_|_Fix re-distributing previously distributed invalidation messages during logical decoding.
+
+Commit 4909b38af0 introduced logic to distribute invalidation messages
+from catalog-modifying transactions to all concurrent in-progress
+transactions. However, since each transaction distributes not only its
+original invalidation messages but also previously distributed
+messages to other transactions, this leads to an exponential increase
+in allocation request size for invalidation messages, ultimately
+causing memory allocation failure.
+
+This commit fixes this issue by tracking distributed invalidation
+messages separately per decoded transaction and not redistributing
+these messages to other in-progress transactions. The maximum size of
+distributed invalidation messages that one transaction can store is
+limited to MAX_DISTR_INVAL_MSG_PER_TXN (8MB). Once the size of the
+distributed invalidation messages exceeds this threshold, we
+invalidate all caches in locations where distributed invalidation
+messages need to be executed.
+
+Back-patch to all supported versions where we introduced the fix by
+commit 4909b38af0.
+
+Note that this commit adds two new fields to ReorderBufferTXN to store
+the distributed transactions. This change breaks ABI compatibility in
+back branches, affecting third-party extensions that depend on the
+size of the ReorderBufferTXN struct, though this scenario seems
+unlikely.
+
+Additionally, it adds a new flag to the txn_flags field of
+ReorderBufferTXN to indicate distributed invalidation message
+overflow. This should not affect existing implementations, as it is
+unlikely that third-party extensions use unused bits in the txn_flags
+field.
+
+Bug: #18938 #18942
+Author: vignesh C <vignesh21@gmail.com>
+Reported-by: Duncan Sands <duncan.sands@deepbluecap.com>
+Reported-by: John Hutchins <john.hutchins@wicourts.gov>
+Reported-by: Laurence Parry <greenreaper@hotmail.com>
+Reported-by: Max Madden <maxmmadden@gmail.com>
+Reported-by: Braulio Fdo Gonzalez <brauliofg@gmail.com>
+Reviewed-by: Masahiko Sawada <sawada.mshk@gmail.com>
+Reviewed-by: Amit Kapila <amit.kapila16@gmail.com>
+Reviewed-by: Hayato Kuroda <kuroda.hayato@fujitsu.com>
+Discussion: https://postgr.es/m/680bdaf6-f7d1-4536-b580-05c2760c67c6@deepbluecap.com
+Discussion: https://postgr.es/m/18942-0ab1e5ae156613ad@postgresql.org
+Discussion: https://postgr.es/m/18938-57c9a1c463b68ce0@postgresql.org
+Discussion: https://postgr.es/m/CAD1FGCT2sYrP_70RTuo56QTizyc+J3wJdtn2gtO3VttQFpdMZg@mail.gmail.com
+Discussion: https://postgr.es/m/CANO2=B=2BT1hSYCE=nuuTnVTnjidMg0+-FfnRnqM6kd23qoygg@mail.gmail.com
+Backpatch-through: 13_|_
