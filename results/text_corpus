@@ -19351,4 +19351,70 @@ Reported-by: Maximilian Chrzan <maximilian.chrzan@here.com>
 Author: Tom Lane <tgl@sss.pgh.pa.us>
 Reviewed-by: Dilip Kumar <dilipbalaut@gmail.com>
 Discussion: https://postgr.es/m/18959-f63b53b864bb1417@postgresql.org
+Backpatch-through: 13_|_Fix some new issues with planning of PlaceHolderVars.
+
+In the wake of commit a16ef313f, we need to deal with more cases
+involving PlaceHolderVars in NestLoopParams than we did before.
+
+For one thing, a16ef313f was incorrect to suppose that we could
+rely on the required-outer relids of the lefthand path to decide
+placement of nestloop-parameter PHVs.  As Richard Guo argued at
+the time, we must look at the required-outer relids of the join
+path itself.
+
+For another, we have to apply replace_nestloop_params() to such
+a PHV's expression, in case it contains references to values that
+will be supplied from NestLoopParams of higher-level nestloops.
+
+For another, we need to be more careful about the phnullingrels
+of the PHV than we were being.  identify_current_nestloop_params
+only bothered to ensure that the phnullingrels didn't contain
+"too many" relids, but now it has to be exact, because setrefs.c
+will apply both NRM_SUBSET and NRM_SUPERSET checks in different
+places.  We can compute the correct relids by determining the
+set of outer joins that should be able to null the PHV and then
+subtracting whatever's been applied at or below this join.
+Do the same for plain Vars, too.  (This should make it possible
+to use NRM_EQUAL to process nestloop params in setrefs.c, but
+I won't risk making such a change in v18 now.)
+
+Lastly, if a nestloop parameter PHV was pulled up out of a subquery
+and it contains a subquery that was originally pushed down from this
+query level, then that will still be represented as a SubLink, because
+SS_process_sublinks won't recurse into outer PHVs, so it didn't get
+transformed during expression preprocessing in the subquery.  We can
+substitute the version of the PHV's expression appearing in its
+PlaceHolderInfo to ensure that that preprocessing has happened.
+(Seems like this processing sequence could stand to be redesigned,
+but again, late in v18 development is not the time for that.)
+
+It's not very clear to me why the old have_dangerous_phv join-order
+restriction prevented us from seeing the last three of these problems.
+But given the lack of field complaints, it must have done so.
+
+Reported-by: Alexander Lakhin <exclusion@gmail.com>
+Author: Tom Lane <tgl@sss.pgh.pa.us>
+Discussion: https://postgr.es/m/18953-1c9883a9d4afeb30@postgresql.org_|_Obtain required table lock during cross-table constraint updates.
+
+Sometimes a table's constraint may depend on a column of another
+table, so that we have to update the constraint when changing the
+referenced column's type.  We need to have lock on the constraint's
+table to do that.  ATPostAlterTypeCleanup believed that this case
+was only possible for FOREIGN KEY constraints, but it's wrong at
+least for CHECK and EXCLUDE constraints; and in general, we'd
+probably need exclusive lock to alter any sort of constraint.
+So just remove the contype check and acquire lock for any other
+table.  This prevents a "you don't have lock" assertion failure,
+though no ill effect is observed in production builds.
+
+We'll error out later anyway because we don't presently support
+physically altering column types within stored composite columns.
+But the catalog-munging is basically all there, so we may as well
+make that part work.
+
+Bug: #18970
+Reported-by: Alexander Lakhin <exclusion@gmail.com>
+Diagnosed-by: jian he <jian.universality@gmail.com>
+Author: Tom Lane <tgl@sss.pgh.pa.us>
+Discussion: https://postgr.es/m/18970-a7d1cfe1f8d5d8d9@postgresql.org
 Backpatch-through: 13_|_
