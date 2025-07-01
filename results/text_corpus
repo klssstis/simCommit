@@ -19417,4 +19417,64 @@ Reported-by: Alexander Lakhin <exclusion@gmail.com>
 Diagnosed-by: jian he <jian.universality@gmail.com>
 Author: Tom Lane <tgl@sss.pgh.pa.us>
 Discussion: https://postgr.es/m/18970-a7d1cfe1f8d5d8d9@postgresql.org
-Backpatch-through: 13_|_
+Backpatch-through: 13_|_xml2: Improve error handling of libxml2 calls
+
+The contrib module xml2/ has always been fuzzy with the cleanup of the
+memory allocated by the calls internal to libxml2, even if there are
+APIs in place giving a lot of control over the error behavior, all
+located in the backend's xml.c.
+
+The code paths fixed in the commit address multiple defects, while
+sanitizing the code:
+- In xpath.c, several allocations are done by libxml2 for
+xpath_workspace, whose memory cleanup could go out of sight as it relied
+on a single TRY/CATCH block done in pgxml_xpath().  workspace->res is
+allocated by libxml2, and may finish by not being freed at all upon a
+failure outside of a TRY area.  This code is refactored so as the
+TRY/CATCH block of pgxml_xpath() is moved one level higher to its
+callers, which are responsible for cleaning up the contents of a
+workspace on failure.  cleanup_workspace() now requires a volatile
+workspace, forcing as a rule that a TRY/CATCH block should be used.
+- Several calls, like xmlStrdup(), xmlXPathNewContext(),
+xmlXPathCtxtCompile(), etc. can return NULL on failures (for most of
+them allocation failures.  These forgot to check for failures, or missed
+that pg_xml_error_occurred() should be called, to check if an error is
+already on the stack.
+- Some memory allocated by libxml2 calls was freed in an incorrect way,
+"resstr" in xslt_process() being one example.
+
+The class of errors fixed here are for problems that are unlikely going
+to happen in practice, so no backpatch is done.  The changes have
+finished by being rather invasive, so it is perhaps not a bad thing to
+be conservative and to keep these changes only on HEAD anyway.
+
+Author: Michael Paquier <michael@paquier.xyz>
+Reported-by: Karavaev Alexey <maralist86@mail.ru>
+Reviewed-by: Jim Jones <jim.jones@uni-muenster.de>
+Reviewed-by: Tom Lane <tgl@sss.pgh.pa.us>
+Discussion: https://postgr.es/m/18943-2f2a04ab03904598@postgresql.org_|_Improve error handling of libxml2 calls in xml.c
+
+This commit fixes some defects in the backend's xml.c, found upon
+inspection of the internals of libxml2:
+- xmlEncodeSpecialChars() can fail on malloc(), returning NULL back to
+the caller.  xmltext() assumed that this could never happen.  Like other
+code paths, a TRY/CATCH block is added there, covering also the fact
+that cstring_to_text_with_len() could fail a memory allocation, where
+the backend would miss to free the buffer allocated by
+xmlEncodeSpecialChars().
+- Some libxml2 routines called in xmlelement() can return NULL, like
+xmlAddChildList() or xmlTextWriterStartElement().  Dedicated errors are
+added for them.
+- xml_xmlnodetoxmltype() missed that xmlXPathCastNodeToString() can fail
+on an allocation failure.  In this case, the call can just be moved to
+the existing TRY/CATCH block.
+
+All these code paths would cause the server to crash.  As this is
+unlikely a problem in practice, no backpatch is done.  Jim and I have
+caught these defects, not sure who has scored the most.  The contrib
+module xml2/ has similar defects, which will be addressed in a separate
+change.
+
+Reported-by: Jim Jones <jim.jones@uni-muenster.de>
+Reviewed-by: Jim Jones <jim.jones@uni-muenster.de>
+Discussion: https://postgr.es/m/aEEingzOta_S_Nu7@paquier.xyz_|_
