@@ -19477,4 +19477,17 @@ change.
 
 Reported-by: Jim Jones <jim.jones@uni-muenster.de>
 Reviewed-by: Jim Jones <jim.jones@uni-muenster.de>
-Discussion: https://postgr.es/m/aEEingzOta_S_Nu7@paquier.xyz_|_
+Discussion: https://postgr.es/m/aEEingzOta_S_Nu7@paquier.xyz_|_Correctly copy the target host identification in PQcancelCreate.
+
+PQcancelCreate failed to copy struct pg_conn_host's "type" field,
+instead leaving it zero (a/k/a CHT_HOST_NAME).  This seemingly
+has no great ill effects if it should have been CHT_UNIX_SOCKET
+instead, but if it should have been CHT_HOST_ADDRESS then a
+null-pointer dereference will occur when the cancelConn is used.
+
+Bug: #18974
+Reported-by: Maxim Boguk <maxim.boguk@gmail.com>
+Author: Sergei Kornilov <sk@zsrv.org>
+Reviewed-by: Tom Lane <tgl@sss.pgh.pa.us>
+Discussion: https://postgr.es/m/18974-575f02b2168b36b3@postgresql.org
+Backpatch-through: 17_|_
