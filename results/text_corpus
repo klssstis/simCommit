@@ -19513,4 +19513,67 @@ Bug: #18981
 Author: Dmitry Kovalenko <d.kovalenko@postgrespro.ru>
 Reviewed-by: Tom Lane <tgl@sss.pgh.pa.us>
 Discussion: https://postgr.es/m/18981-9bc3c80f107ae925@postgresql.org
-Backpatch-through: 16_|_
+Backpatch-through: 16_|_Fix the handling of two GUCs during upgrade.
+
+Previously, the check_hook functions for max_slot_wal_keep_size and
+idle_replication_slot_timeout would incorrectly raise an ERROR for values
+set in postgresql.conf during upgrade, even though those values were not
+actively used in the upgrade process.
+
+To prevent logical slot invalidation during upgrade, we used to set
+special values for these GUCs. Now, instead of relying on those values, we
+directly prevent WAL removal and logical slot invalidation caused by
+max_slot_wal_keep_size and idle_replication_slot_timeout.
+
+Note: PostgreSQL 17 does not include the idle_replication_slot_timeout
+GUC, so related changes were not backported.
+
+BUG #18979
+Reported-by: jorsol <jorsol@gmail.com>
+Author: Dilip Kumar <dilipbalaut@gmail.com>
+Reviewed by: vignesh C <vignesh21@gmail.com>
+Reviewed by: Alvaro Herrera <alvherre@alvh.no-ip.org>
+Backpatch-through: 17, where it was introduced
+Discussion: https://postgr.es/m/219561.1751826409@sss.pgh.pa.us
+Discussion: https://postgr.es/m/18979-a1b7fdbb7cd181c6@postgresql.org_|_doc: Clarify meaning of "idle" in idle_replication_slot_timeout.
+
+This commit updates the documentation to clarify that "idle" in
+idle_replication_slot_timeout means the replication slot is inactive,
+that is, not currently used by any replication connection.
+
+Without this clarification, "idle" could be misinterpreted to mean
+that the slot is not advancing or that no data is being streamed,
+even if a connection exists.
+
+Back-patch to v18 where idle_replication_slot_timeout was added.
+
+Author: Laurenz Albe <laurenz.albe@cybertec.at>
+Reviewed-by: David G. Johnston <david.g.johnston@gmail.com>
+Reviewed-by: Gunnar Morling <gunnar.morling@googlemail.com>
+Reviewed-by: Amit Kapila <amit.kapila16@gmail.com>
+Reviewed-by: Fujii Masao <masao.fujii@gmail.com>
+Discussion: https://postgr.es/m/CADGJaX_0+FTguWpNSpgVWYQP_7MhoO0D8=cp4XozSQgaZ40Odw@mail.gmail.com
+Backpatch-through: 18_|_Change unit of idle_replication_slot_timeout to seconds.
+
+Previously, the idle_replication_slot_timeout parameter used minutes
+as its unit, based on the assumption that values would typically exceed
+one minute in production environments. However, this caused unexpected
+behavior: specifying a value below 30 seconds would round down to 0,
+effectively disabling the timeout. This could be surprising to users.
+
+To allow finer-grained control and avoid such confusion, this commit changes
+the unit of idle_replication_slot_timeout to seconds. Larger values can
+still be specified easily using standard time suffixes, for example,
+'24h' for 24 hours.
+
+Back-patch to v18 where idle_replication_slot_timeout was added.
+
+Reported-by: Gunnar Morling <gunnar.morling@googlemail.com>
+Author: Fujii Masao <masao.fujii@gmail.com>
+Reviewed-by: Laurenz Albe <laurenz.albe@cybertec.at>
+Reviewed-by: David G. Johnston <david.g.johnston@gmail.com>
+Reviewed-by: Amit Kapila <amit.kapila16@gmail.com>
+Reviewed-by: Hayato Kuroda <kuroda.hayato@fujitsu.com>
+Reviewed-by: Tom Lane <tgl@sss.pgh.pa.us>
+Discussion: https://postgr.es/m/CADGJaX_0+FTguWpNSpgVWYQP_7MhoO0D8=cp4XozSQgaZ40Odw@mail.gmail.com
+Backpatch-through: 18_|_
