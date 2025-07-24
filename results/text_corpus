@@ -19627,4 +19627,49 @@ Backpatch-through: 13
 Reported-by: Aleksander Alekseev <aleksander@tigerdata.com>
 Reviewed-by: Tom Lane <tgl@sss.pgh.pa.us>
 Reviewed-by: Michaël Paquier <michael@paquier.xyz>
-Discussion: https://postgr.es/m/18984-0f4778a6599ac3ae@postgresql.org_|_
+Discussion: https://postgr.es/m/18984-0f4778a6599ac3ae@postgresql.org_|_Fix duplicate transaction replay during pg_createsubscriber.
+
+Previously, the tool could replay the same transaction twice, once during
+recovery, then again during replication after the subscriber was set up.
+
+This occurred because the same recovery_target_lsn was used both to
+finalize recovery and to start replication. If
+recovery_target_inclusive = true, the transaction at that LSN would be
+applied during recovery and then sent again by the publisher leading to
+duplication.
+
+To prevent this, we now set recovery_target_inclusive = false. This
+ensures the transaction at recovery_target_lsn is not reapplied during
+recovery, avoiding duplication when replication begins.
+
+Bug #18897
+Reported-by: Zane Duffield <duffieldzane@gmail.com>
+Author: Shlok Kyal <shlok.kyal.oss@gmail.com>
+Reviewed-by: vignesh C <vignesh21@gmail.com>
+Reviewed-by: Amit Kapila <amit.kapila16@gmail.com>
+Backpatch-through: 17, where it was introduced
+Discussion: https://postgr.es/m/18897-d3db67535860dddb@postgresql.org_|_Fix build breakage on Solaris-alikes with late-model GCC.
+
+Solaris has never bothered to add "const" to the second argument
+of PAM conversation procs, as all other Unixen did decades ago.
+This resulted in an "incompatible pointer" compiler warning when
+building --with-pam, but had no more serious effect than that,
+so we never did anything about it.  However, as of GCC 14 the
+case is an error not warning by default.
+
+To complicate matters, recent OpenIndiana (and maybe illumos
+in general?) *does* supply the "const" by default, so we can't
+just assume that platforms using our solaris template need help.
+
+What we can do, short of building a configure-time probe,
+is to make solaris.h #define _PAM_LEGACY_NONCONST, which
+causes OpenIndiana's pam_appl.h to revert to the traditional
+definition, and hopefully will have no effect anywhere else.
+Then we can use that same symbol to control whether we include
+"const" in the declaration of pam_passwd_conv_proc().
+
+Bug: #18995
+Reported-by: Andrew Watkins <awatkins1966@gmail.com>
+Author: Tom Lane <tgl@sss.pgh.pa.us>
+Discussion: https://postgr.es/m/18995-82058da9ab4337a7@postgresql.org
+Backpatch-through: 13_|_
