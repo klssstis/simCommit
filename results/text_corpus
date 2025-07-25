@@ -19672,4 +19672,20 @@ Bug: #18995
 Reported-by: Andrew Watkins <awatkins1966@gmail.com>
 Author: Tom Lane <tgl@sss.pgh.pa.us>
 Discussion: https://postgr.es/m/18995-82058da9ab4337a7@postgresql.org
-Backpatch-through: 13_|_
+Backpatch-through: 13_|_Fix assertion failure with latch wait in single-user mode
+
+LatchWaitSetPostmasterDeathPos, the latch event position for the
+postmaster death event, is initialized under IsUnderPostmaster.
+WaitLatch() considered it as a valid wait target in single-user mode
+(!IsUnderPostmaster), which was incorrect.
+
+One code path found to fail with an assertion failure is a database drop
+in single-user mode while waiting in WaitForProcSignalBarrier() after
+the drop.
+
+Oversight in commit 84e5b2f07a5e.
+
+Author: Patrick Stählin <me@packi.ch>
+Co-authored-by: Ronan Dunklau <ronan.dunklau@aiven.io>
+Discussion: https://postgr.es/m/18996-3a2744c8140488de@postgresql.org
+Backpatch-through: 18_|_
