@@ -19688,4 +19688,47 @@ Oversight in commit 84e5b2f07a5e.
 Author: Patrick Stählin <me@packi.ch>
 Co-authored-by: Ronan Dunklau <ronan.dunklau@aiven.io>
 Discussion: https://postgr.es/m/18996-3a2744c8140488de@postgresql.org
-Backpatch-through: 18_|_
+Backpatch-through: 18_|_Don't put library-supplied -L/-I switches before user-supplied ones.
+
+For many optional libraries, we extract the -L and -l switches needed
+to link the library from a helper program such as llvm-config.  In
+some cases we put the resulting -L switches into LDFLAGS ahead of
+-L switches specified via --with-libraries.  That risks breaking
+the user's intention for --with-libraries.
+
+It's not such a problem if the library's -L switch points to a
+directory containing only that library, but on some platforms a
+library helper may "helpfully" offer a switch such as -L/usr/lib
+that points to a directory holding all standard libraries.  If the
+user specified --with-libraries in hopes of overriding the standard
+build of some library, the -L/usr/lib switch prevents that from
+happening since it will come before the user-specified directory.
+
+To fix, avoid inserting these switches directly into LDFLAGS during
+configure, instead adding them to LIBDIRS or SHLIB_LINK.  They will
+still eventually get added to LDFLAGS, but only after the switches
+coming from --with-libraries.
+
+The same problem exists for -I switches: those coming from
+--with-includes should appear before any coming from helper programs
+such as llvm-config.  We have not heard field complaints about this
+case, but it seems certain that a user attempting to override a
+standard library could have issues.
+
+The changes for this go well beyond configure itself, however,
+because many Makefiles have occasion to manipulate CPPFLAGS to
+insert locally-desirable -I switches, and some of them got it wrong.
+The correct ordering is any -I switches pointing at within-the-
+source-tree-or-build-tree directories, then those from the tree-wide
+CPPFLAGS, then those from helper programs.  There were several places
+that risked pulling in a system-supplied copy of libpq headers, for
+example, instead of the in-tree files.  (Commit cb36f8ec2 fixed one
+instance of that a few months ago, but this exercise found more.)
+
+The Meson build scripts may or may not have any comparable problems,
+but I'll leave it to someone else to investigate that.
+
+Reported-by: Charles Samborski <demurgos@demurgos.net>
+Author: Tom Lane <tgl@sss.pgh.pa.us>
+Discussion: https://postgr.es/m/70f2155f-27ca-4534-b33d-7750e20633d7@demurgos.net
+Backpatch-through: 13_|_
