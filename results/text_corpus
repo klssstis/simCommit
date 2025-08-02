@@ -19731,4 +19731,62 @@ but I'll leave it to someone else to investigate that.
 Reported-by: Charles Samborski <demurgos@demurgos.net>
 Author: Tom Lane <tgl@sss.pgh.pa.us>
 Discussion: https://postgr.es/m/70f2155f-27ca-4534-b33d-7750e20633d7@demurgos.net
-Backpatch-through: 13_|_
+Backpatch-through: 13_|_Fix use-after-free with INSERT ON CONFLICT changes in reorderbuffer.c
+
+In ReorderBufferProcessTXN(), used to send the data of a transaction to
+an output plugin, INSERT ON CONFLICT changes (INTERNAL_SPEC_INSERT) are
+delayed until a confirmation record arrives (INTERNAL_SPEC_CONFIRM),
+updating the change being processed.
+
+8c58624df462 has added an extra step after processing a change to update
+the progress of the transaction, by calling the callback
+update_progress_txn() based on the LSN stored in a change after a
+threshold of CHANGES_THRESHOLD (100) is reached.  This logic has missed
+the fact that for an INSERT ON CONFLICT change the data is freed once
+processed, hence update_progress_txn() could be called pointing to a LSN
+value that's already been freed.  This could result in random crashes,
+depending on the workload.
+
+Per discussion, this issue is fixed by reusing in update_progress_txn()
+the LSN from the change processed found at the beginning of the loop,
+meaning that for a INTERNAL_SPEC_CONFIRM change the progress is updated
+using the LSN of the INTERNAL_SPEC_CONFIRM change, and not the LSN from
+its INTERNAL_SPEC_INSERT change.  This is actually more correct, as we
+want to update the progress to point to the INTERNAL_SPEC_CONFIRM
+change.
+
+Masahiko Sawada has found a nice trick to reproduce the issue: hardcode
+CHANGES_THRESHOLD at 1 and run test_decoding (test "ddl" being enough)
+on an instance running valgrind.  The bug has been analyzed by Ethan
+Mertz, who also originally suggested the solution used in this patch.
+
+Issue introduced by 8c58624df462, so backpatch down to v16.
+
+Author: Ethan Mertz <ethan.mertz@gmail.com>
+Co-authored-by: Michael Paquier <michael@paquier.xyz>
+Reviewed-by: Amit Kapila <amit.kapila16@gmail.com>
+Reviewed-by: Masahiko Sawada <sawada.mshk@gmail.com>
+Discussion: https://postgr.es/m/aIsQqDZ7x4LAQ6u1@paquier.xyz
+Backpatch-through: 16_|_Allow resetting unknown custom GUCs with reserved prefixes.
+
+Currently, ALTER DATABASE/ROLE/SYSTEM RESET [ALL] with an unknown
+custom GUC with a prefix reserved by MarkGUCPrefixReserved() errors
+(unless a superuser runs a RESET ALL variant).  This is problematic
+for cases such as an extension library upgrade that removes a GUC.
+To fix, simply make sure the relevant code paths explicitly allow
+it.  Note that we require superuser or privileges on the parameter
+to reset it.  This is perhaps a bit more restrictive than is
+necessary, but it's not clear whether further relaxing the
+requirements is safe.
+
+Oversight in commit 88103567cb.  The ALTER SYSTEM fix is dependent
+on commit 2d870b4aef, which first appeared in v17.  Unfortunately,
+back-patching that commit would introduce ABI breakage, and while
+that breakage seems unlikely to bother anyone, it doesn't seem
+worth the risk.  Hence, the ALTER SYSTEM part of this commit is
+omitted on v15 and v16.
+
+Reported-by: Mert Alev <mert@futo.org>
+Reviewed-by: Laurenz Albe <laurenz.albe@cybertec.at>
+Discussion: https://postgr.es/m/18964-ba09dea8c98fccd6%40postgresql.org
+Backpatch-through: 15_|_
