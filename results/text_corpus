@@ -19789,4 +19789,24 @@ omitted on v15 and v16.
 Reported-by: Mert Alev <mert@futo.org>
 Reviewed-by: Laurenz Albe <laurenz.albe@cybertec.at>
 Discussion: https://postgr.es/m/18964-ba09dea8c98fccd6%40postgresql.org
-Backpatch-through: 15_|_
+Backpatch-through: 15_|_Avoid unexpected shutdown when sync_replication_slots is enabled.
+
+Previously, enabling sync_replication_slots while wal_level was not set
+to logical could cause the server to shut down. This was because
+the postmaster performed a configuration check before launching
+the slot synchronization worker and raised an ERROR if the settings
+were incompatible. Since ERROR is treated as FATAL in the postmaster,
+this resulted in the entire server shutting down unexpectedly.
+
+This commit changes the postmaster to log that message with a LOG-level
+instead of raising an ERROR, allowing the server to continue running
+even with the misconfiguration.
+
+Back-patch to v17, where slot synchronization was introduced.
+
+Reported-by: Hugo DUBOIS <hdubois@scaleway.com>
+Author: Fujii Masao <masao.fujii@gmail.com>
+Reviewed-by: Hugo DUBOIS <hdubois@scaleway.com>
+Reviewed-by: Shveta Malik <shveta.malik@gmail.com>
+Discussion: https://postgr.es/m/CAH0PTU_pc3oHi__XESF9ZigCyzai1Mo3LsOdFyQA4aUDkm01RA@mail.gmail.com
+Backpatch-through: 17_|_
