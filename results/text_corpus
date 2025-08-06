@@ -19809,4 +19809,17 @@ Author: Fujii Masao <masao.fujii@gmail.com>
 Reviewed-by: Hugo DUBOIS <hdubois@scaleway.com>
 Reviewed-by: Shveta Malik <shveta.malik@gmail.com>
 Discussion: https://postgr.es/m/CAH0PTU_pc3oHi__XESF9ZigCyzai1Mo3LsOdFyQA4aUDkm01RA@mail.gmail.com
-Backpatch-through: 17_|_
+Backpatch-through: 17_|_Don't copy datlocale from template unless provider matches.
+
+During CREATE DATABASE, if changing the locale provider, require that
+a new locale is specified rather than trying to reinterpret the
+template's locale using the new provider.
+
+This only affects the behavior when the template uses the builtin
+provider and CREATE DATABASE specifies the ICU provider without
+specifying the locale. Previously, that may have succeeded due to
+loose validation by ICU, whereas now that will cause an error. Because
+it can cause an error, backport only to unreleased versions.
+
+Discussion: https://postgr.es/m/5038b33a6dc639009f4b3d43fa6ae0c5ba9e04f7.camel@j-davis.com
+Backpatch-through: 18_|_
