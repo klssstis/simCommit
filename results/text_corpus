@@ -19822,4 +19822,22 @@ loose validation by ICU, whereas now that will cause an error. Because
 it can cause an error, backport only to unreleased versions.
 
 Discussion: https://postgr.es/m/5038b33a6dc639009f4b3d43fa6ae0c5ba9e04f7.camel@j-davis.com
-Backpatch-through: 18_|_
+Backpatch-through: 18_|_Fix rare bug in read_stream.c's split IO handling.
+
+The internal queue of buffers could become corrupted in a rare edge case
+that failed to invalidate an entry, causing a stale buffer to be
+"forwarded" to StartReadBuffers().  This is a simple fix for the
+immediate problem.
+
+A small API change might be able to remove this and related fragility
+entirely, but that will have to wait a bit.
+
+Defect in commit ed0b87ca.
+
+Bug: 19006
+Backpatch-through: 18
+Reported-by: Alexander Lakhin <exclusion@gmail.com>
+Reviewed-by: Tom Lane <tgl@sss.pgh.pa.us>
+Reviewed-by: Michael Paquier <michael@paquier.xyz>
+Reviewed-by: Xuneng Zhou <xunengzhou@gmail.com>
+Discussion: https://postgr.es/m/19006-80fcaaf69000377e%40postgresql.org_|_
