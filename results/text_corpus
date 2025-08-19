@@ -19840,4 +19840,36 @@ Reported-by: Alexander Lakhin <exclusion@gmail.com>
 Reviewed-by: Tom Lane <tgl@sss.pgh.pa.us>
 Reviewed-by: Michael Paquier <michael@paquier.xyz>
 Reviewed-by: Xuneng Zhou <xunengzhou@gmail.com>
-Discussion: https://postgr.es/m/19006-80fcaaf69000377e%40postgresql.org_|_
+Discussion: https://postgr.es/m/19006-80fcaaf69000377e%40postgresql.org_|_Fix self-deadlock during DROP SUBSCRIPTION.
+
+The DROP SUBSCRIPTION command performs several operations: it stops the
+subscription workers, removes subscription-related entries from system
+catalogs, and deletes the replication slot on the publisher server.
+Previously, this command acquired an AccessExclusiveLock on
+pg_subscription before initiating these steps.
+
+However, while holding this lock, the command attempts to connect to the
+publisher to remove the replication slot. In cases where the connection is
+made to a newly created database on the same server as subscriber, the
+cache-building process during connection tries to acquire an
+AccessShareLock on pg_subscription, resulting in a self-deadlock.
+
+To resolve this issue, we reduce the lock level on pg_subscription during
+DROP SUBSCRIPTION from AccessExclusiveLock to RowExclusiveLock. Earlier,
+the higher lock level was used to prevent the launcher from starting a new
+worker during the drop operation, as a restarted worker could become
+orphaned.
+
+Now, instead of relying on a strict lock, we acquire an AccessShareLock on
+the specific subscription being dropped and re-validate its existence
+after acquiring the lock. If the subscription is no longer valid, the
+worker exits gracefully. This approach avoids the deadlock while still
+ensuring that orphan workers are not created.
+
+Reported-by: Alexander Lakhin <exclusion@gmail.com>
+Author: Dilip Kumar <dilipbalaut@gmail.com>
+Reviewed-by: vignesh C <vignesh21@gmail.com>
+Reviewed-by: Hayato Kuroda <kuroda.hayato@fujitsu.com>
+Reviewed-by: Amit Kapila <amit.kapila16@gmail.com>
+Backpatch-through: 13
+Discussion: https://postgr.es/m/18988-7312c868be2d467f@postgresql.org_|_
