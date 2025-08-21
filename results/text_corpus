@@ -19872,4 +19872,31 @@ Reviewed-by: vignesh C <vignesh21@gmail.com>
 Reviewed-by: Hayato Kuroda <kuroda.hayato@fujitsu.com>
 Reviewed-by: Amit Kapila <amit.kapila16@gmail.com>
 Backpatch-through: 13
-Discussion: https://postgr.es/m/18988-7312c868be2d467f@postgresql.org_|_
+Discussion: https://postgr.es/m/18988-7312c868be2d467f@postgresql.org_|_Fix re-execution of a failed SQLFunctionCache entry.
+
+If we error out during execution of a SQL-language function, we will
+often leave behind non-null pointers in its SQLFunctionCache's cplan
+and eslist fields.  This is problematic if the SQLFunctionCache is
+re-used, because those pointers will point at resources that were
+released during error cleanup.  This problem escaped detection so far
+because ordinarily we won't re-use an FmgrInfo+SQLFunctionCache struct
+after a query error.  However, in the rather improbable case that
+someone implements an opclass support function in SQL language, there
+will be long-lived FmgrInfos for it in the relcache, and then the
+problem is reachable after the function throws an error.
+
+To fix, add a flag to SQLFunctionCache that tracks whether execution
+escapes out of fmgr_sql, and clear out the relevant fields during
+init_sql_fcache if so.  (This is going to need more thought if we ever
+try to share FMgrInfos across threads; but it's very far from being
+the only problem such a project will encounter, since many functions
+regard fn_extra as being query-local state.)
+
+This broke at commit 0313c5dc6; before that we did not try to re-use
+SQLFunctionCache state across calls.  Hence, back-patch to v18.
+
+Bug: #19026
+Reported-by: Alexander Lakhin <exclusion@gmail.com>
+Author: Tom Lane <tgl@sss.pgh.pa.us>
+Discussion: https://postgr.es/m/19026-90aed5e71d0c8af3@postgresql.org
+Backpatch-through: 18_|_
