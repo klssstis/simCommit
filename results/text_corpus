@@ -19899,4 +19899,63 @@ Bug: #19026
 Reported-by: Alexander Lakhin <exclusion@gmail.com>
 Author: Tom Lane <tgl@sss.pgh.pa.us>
 Discussion: https://postgr.es/m/19026-90aed5e71d0c8af3@postgresql.org
-Backpatch-through: 18_|_
+Backpatch-through: 18_|_Ignore temporary relations in RelidByRelfilenumber()
+
+Temporary relations may share the same RelFileNumber with a permanent
+relation, or other temporary relations associated with other sessions.
+
+Being able to uniquely identify a temporary relation would require
+RelidByRelfilenumber() to know about the proc number of the temporary
+relation it wants to identify, something it is not designed for since
+its introduction in f01d1ae3a104.
+
+There are currently three callers of RelidByRelfilenumber():
+- autoprewarm.
+- Logical decoding, reorder buffer.
+- pg_filenode_relation(), that attempts to find a relation OID based on
+a tablespace OID and a RelFileNumber.
+
+This makes the situation problematic particularly for the first two
+cases, leading to the possibility of random ERRORs due to
+inconsistencies that temporary relations can create in the cache
+maintained by RelidByRelfilenumber().  The third case should be less of
+an issue, as I suspect that there are few direct callers of
+pg_filenode_relation().
+
+The window where the ERRORs are happen is very narrow, requiring an OID
+wraparound to create a lookup conflict in RelidByRelfilenumber() with a
+temporary table reusing the same OID as another relation already cached.
+The problem is easier to reach in workloads with a high OID consumption
+rate, especially with a higher number of temporary relations created.
+
+We could get pg_filenode_relation() and RelidByRelfilenumber() to work
+with temporary relations if provided the means to identify them with an
+optional proc number given in input, but the years have also shown that
+we do not have a use case for it, yet.  Note that this could not be
+backpatched if pg_filenode_relation() needs changes.  It is simpler to
+ignore temporary relations.
+
+Reported-by: Shenhao Wang <wangsh.fnst@fujitsu.com>
+Author: Vignesh C <vignesh21@gmail.com>
+Reviewed-By: Ashutosh Bapat <ashutosh.bapat.oss@gmail.com>
+Reviewed-By: Robert Haas <robertmhaas@gmail.com>
+Reviewed-By: Kyotaro Horiguchi <horikyota.ntt@gmail.com>
+Reviewed-By: Takamichi Osumi <osumi.takamichi@fujitsu.com>
+Reviewed-By: Michael Paquier <michael@paquier.xyz>
+Reviewed-By: Masahiko Sawada <sawada.mshk@gmail.com>
+Reported-By: Shenhao Wang <wangsh.fnst@fujitsu.com>
+Discussion: https://postgr.es/m/bbaaf9f9-ebb2-645f-54bb-34d6efc7ac42@fujitsu.com
+Backpatch-through: 13_|_Disallow server start with sync_replication_slots = on and wal_level < logical.
+
+Replication slot synchronization (sync_replication_slots = on)
+requires wal_level to be logical. This commit prevents the server
+from starting if sync_replication_slots is enabled but wal_level
+is set to minimal or replica.
+
+Failing early during startup helps users catch invalid configurations
+immediately, which is important because changing wal_level requires
+a server restart.
+
+Author: Fujii Masao <masao.fujii@gmail.com>
+Reviewed-by: Shveta Malik <shveta.malik@gmail.com>
+Discussion: https://postgr.es/m/CAH0PTU_pc3oHi__XESF9ZigCyzai1Mo3LsOdFyQA4aUDkm01RA@mail.gmail.com_|_
