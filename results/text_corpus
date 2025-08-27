@@ -19958,4 +19958,40 @@ a server restart.
 
 Author: Fujii Masao <masao.fujii@gmail.com>
 Reviewed-by: Shveta Malik <shveta.malik@gmail.com>
-Discussion: https://postgr.es/m/CAH0PTU_pc3oHi__XESF9ZigCyzai1Mo3LsOdFyQA4aUDkm01RA@mail.gmail.com_|_
+Discussion: https://postgr.es/m/CAH0PTU_pc3oHi__XESF9ZigCyzai1Mo3LsOdFyQA4aUDkm01RA@mail.gmail.com_|_Put "excludeOnly" GIN scan keys at the end of the scankey array.
+
+Commit 4b754d6c1 introduced the concept of an excludeOnly scan key,
+which cannot select matching index entries but can reject
+non-matching tuples, for example a tsquery such as '!term'.  There are
+poorly-documented assumptions that such scan keys do not appear as the
+first scan key.  ginNewScanKey did nothing to ensure that, however,
+with the result that certain GIN index searches could go into an
+infinite loop while apparently-equivalent queries with the clauses in
+a different order were fine.
+
+Fix by teaching ginNewScanKey to place all excludeOnly scan keys
+after all not-excludeOnly ones.  So far as we know at present,
+it might be sufficient to avoid the case where the very first
+scan key is excludeOnly; but I'm not very convinced that there
+aren't other dependencies on the ordering.
+
+Bug: #19031
+Reported-by: Tim Wood <washwithcare@gmail.com>
+Author: Tom Lane <tgl@sss.pgh.pa.us>
+Discussion: https://postgr.es/m/19031-0638148643d25548@postgresql.org
+Backpatch-through: 13_|_Do CHECK_FOR_INTERRUPTS inside, not before, scanGetItem.
+
+The CHECK_FOR_INTERRUPTS call in gingetbitmap turns out to be
+inadequate to prevent a long uninterruptible loop, because
+we now know a case where looping occurs within scanGetItem.
+While the next patch will fix the bug that caused that, it
+seems foolish to assume that no similar patterns are possible.
+Let's do the CFI within scanGetItem's retry loop, instead.
+This demonstrably allows canceling out of the loop exhibited
+in bug #19031.
+
+Bug: #19031
+Reported-by: Tim Wood <washwithcare@gmail.com>
+Author: Tom Lane <tgl@sss.pgh.pa.us>
+Discussion: https://postgr.es/m/19031-0638148643d25548@postgresql.org
+Backpatch-through: 13_|_
