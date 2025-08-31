@@ -19994,4 +19994,26 @@ Bug: #19031
 Reported-by: Tim Wood <washwithcare@gmail.com>
 Author: Tom Lane <tgl@sss.pgh.pa.us>
 Discussion: https://postgr.es/m/19031-0638148643d25548@postgresql.org
-Backpatch-through: 13_|_
+Backpatch-through: 13_|_Fix const-simplification for constraints and stats
+
+Constraint expressions and statistics expressions loaded from the
+system catalogs need to be run through const-simplification, because
+the planner will be comparing them to similarly-processed qual
+clauses.  Without this step, the planner may fail to detect valid
+matches.
+
+Currently, NullTest clauses in these expressions may not be reduced
+correctly during const-simplification.  This happens because their Var
+nodes do not yet have the correct varno when eval_const_expressions is
+applied.  Since eval_const_expressions relies on varno to reduce
+NullTest quals, incorrect varno can cause problems.
+
+Additionally, for statistics expressions, eval_const_expressions is
+called with root set to NULL, which also inhibits NullTest reduction.
+
+This patch fixes the issue by ensuring that Vars are updated to have
+the correct varno before const-simplification, and that a valid root
+is passed to eval_const_expressions when needed.
+
+Author: Richard Guo <guofenglinux@gmail.com>
+Discussion: https://postgr.es/m/19007-4cc6e252ed8aa54a@postgresql.org_|_
