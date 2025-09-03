@@ -20016,4 +20016,46 @@ the correct varno before const-simplification, and that a valid root
 is passed to eval_const_expressions when needed.
 
 Author: Richard Guo <guofenglinux@gmail.com>
-Discussion: https://postgr.es/m/19007-4cc6e252ed8aa54a@postgresql.org_|_
+Discussion: https://postgr.es/m/19007-4cc6e252ed8aa54a@postgresql.org_|_Fix planner error when estimating SubPlan cost
+
+SubPlan nodes are typically built very early, before any RelOptInfos
+have been constructed for the parent query level.  As a result, the
+simple_rel_array in the parent root has not yet been initialized.
+Currently, during cost estimation of a SubPlan's testexpr, we may call
+examine_variable() to look up statistical data about the expressions.
+This can lead to "no relation entry for relid" errors.
+
+To fix, pass root as NULL to cost_qual_eval() in cost_subplan(), since
+the root does not yet contain enough information to safely consult
+statistics.
+
+One exception is SubPlan nodes built for the initplans of MIN/MAX
+aggregates from indexes.  In this case, having a NULL root is safe
+because testexpr will be NULL.  Additionally, an initplan will by
+definition not consult anything from the parent plan.
+
+Backpatch to all supported branches.  Although the reported call path
+that triggers this error is not reachable prior to v17, there's no
+guarantee that other code paths -- especially in extensions -- could
+not encounter the same issue when cost_qual_eval() is called with a
+root that lacks a valid simple_rel_array.  The test case is not
+included in pre-v17 branches though.
+
+Bug: #19037
+Reported-by: Alexander Lakhin <exclusion@gmail.com>
+Diagnosed-by: Tom Lane <tgl@sss.pgh.pa.us>
+Author: Richard Guo <guofenglinux@gmail.com>
+Reviewed-by: Tom Lane <tgl@sss.pgh.pa.us>
+Discussion: https://postgr.es/m/19037-3d1c7bb553c7ce84@postgresql.org
+Backpatch-through: 13_|_libpq: Fix PQtrace() format for non-printable characters
+
+PQtrace() was generating its output for non-printable characters without
+casting the characters printed with unsigned char, leading to some extra
+"\xffffff" generated in the output due to the fact that char may be
+signed.
+
+Oversights introduced by commit 198b3716dba6, so backpatch down to v14.
+
+Author: Ran Benita <ran@unusedvar.com>
+Discussion: https://postgr.es/m/a3383211-4539-459b-9d51-95c736ef08e0@app.fastmail.com
+Backpatch-through: 14_|_
