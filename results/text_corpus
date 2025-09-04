@@ -20058,4 +20058,31 @@ Oversights introduced by commit 198b3716dba6, so backpatch down to v14.
 
 Author: Ran Benita <ran@unusedvar.com>
 Discussion: https://postgr.es/m/a3383211-4539-459b-9d51-95c736ef08e0@app.fastmail.com
-Backpatch-through: 14_|_
+Backpatch-through: 14_|_Make libpq_pipeline.c shorter and more uniform via helper functions.
+
+There are many places in this test program that need to consume a
+PGresult while checking that its PQresultStatus is as-expected, or
+related tasks such as checking that PQgetResult has nothing more to
+return.  These tasks were open-coded in a rather inconsistent way,
+leading to some outright bugs, some memory leakage, and frequent
+inconsistencies about what would be reported in event of an error.
+Invent a few helper functions to standardize the behavior and
+reduce code duplication.  Also, rename the one pre-existing helper
+function from confirm_query_canceled to consume_query_cancel, per
+Álvaro's suggestion that "confirm" is a poor choice of verb for a
+function that will discard the PGresult.
+
+While at it, clean up assorted other places that were leaking
+PGresults or even server connections.  This is pure neatnik-ism,
+since the test doesn't run long enough for those leaks to be of
+any real-world concern.
+
+While this fixes some things that are clearly bugs, it's only
+a test program, and none of the bugs seem serious enough to
+justify back-patching.
+
+Bug: #18960
+Reported-by: Dmitry Kovalenko <d.kovalenko@postgrespro.ru>
+Author: Tom Lane <tgl@sss.pgh.pa.us>
+Reviewed-by: Álvaro Herrera <alvherre@kurilemu.de>
+Discussion: https://postgr.es/m/18960-09cd4a5100152e58@postgresql.org_|_
