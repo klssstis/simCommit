@@ -20085,4 +20085,55 @@ Bug: #18960
 Reported-by: Dmitry Kovalenko <d.kovalenko@postgrespro.ru>
 Author: Tom Lane <tgl@sss.pgh.pa.us>
 Reviewed-by: Álvaro Herrera <alvherre@kurilemu.de>
-Discussion: https://postgr.es/m/18960-09cd4a5100152e58@postgresql.org_|_
+Discussion: https://postgr.es/m/18960-09cd4a5100152e58@postgresql.org_|_Eliminate duplicative hashtempcxt in nodeSubplan.c.
+
+Instead of building a separate memory context that's used just
+for running hash functions, make the hash functions run in the
+per-tuple context of the node's innerecontext.  This saves a
+little space at runtime, and it avoids needing to reset two
+contexts instead of one inside buildSubPlanHash's main loop.
+
+This largely reverts commit 133924e13.  That's safe to do now
+because bf6c614a2 decoupled the evaluation context used by
+TupleHashTableMatch from that used for hash function evaluation,
+so that there's no longer a risk of resetting the innerecontext
+too soon.
+
+Per discussion of bug #19040, although this is not directly
+a fix for that.
+
+Author: Tom Lane <tgl@sss.pgh.pa.us>
+Reviewed-by: Haiyang Li <mohen.lhy@alibaba-inc.com>
+Reviewed-by: Fei Changhong <feichanghong@qq.com>
+Discussion: https://postgr.es/m/19040-c9b6073ef814f48c@postgresql.org_|_Fix memory leakage in nodeSubplan.c.
+
+If the hash functions used for hashing tuples leaked any memory,
+we failed to clean that up, resulting in query-lifespan memory
+leakage in queries using hashed subplans.  One way that could
+happen is if the values being hashed require de-toasting, since
+most of our hash functions don't trouble to clean up de-toasted
+inputs.
+
+Prior to commit bf6c614a2, this leakage was largely masked
+because TupleHashTableMatch would reset hashtable->tempcxt
+(via execTuplesMatch).  But it doesn't do that anymore, and
+that's not really the right place for this anyway: doing it
+there could reset the tempcxt many times per hash lookup,
+or not at all.  Instead put reset calls into ExecHashSubPlan
+and buildSubPlanHash.  Along the way to that, rearrange
+ExecHashSubPlan so that there's just one place to call
+MemoryContextReset instead of several.
+
+This amounts to accepting the de-facto API spec that the caller
+of the TupleHashTable routines is responsible for resetting the
+tempcxt adequately often.  Although the other callers seem to
+get this right, it was not documented anywhere, so add a comment
+about it.
+
+Bug: #19040
+Reported-by: Haiyang Li <mohen.lhy@alibaba-inc.com>
+Author: Haiyang Li <mohen.lhy@alibaba-inc.com>
+Reviewed-by: Fei Changhong <feichanghong@qq.com>
+Reviewed-by: Tom Lane <tgl@sss.pgh.pa.us>
+Discussion: https://postgr.es/m/19040-c9b6073ef814f48c@postgresql.org
+Backpatch-through: 13_|_
