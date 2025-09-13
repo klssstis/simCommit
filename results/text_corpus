@@ -20136,4 +20136,26 @@ Author: Haiyang Li <mohen.lhy@alibaba-inc.com>
 Reviewed-by: Fei Changhong <feichanghong@qq.com>
 Reviewed-by: Tom Lane <tgl@sss.pgh.pa.us>
 Discussion: https://postgr.es/m/19040-c9b6073ef814f48c@postgresql.org
-Backpatch-through: 13_|_
+Backpatch-through: 13_|_Always commute strategy when preprocessing DESC keys.
+
+A recently added nbtree preprocessing step failed to account for the
+fact that DESC columns already had their B-Tree strategy number commuted
+at this point in preprocessing.  As a result, preprocessing could output
+a set of scan keys where one or more keys had the correct strategy
+number, but used the wrong comparison routine.
+
+To fix, make the faulty code path that looks up a more restrictive
+replacement operator/comparison routine commute its requested inequality
+strategy (while outputting the transformed strategy number as before).
+This makes the final transformed scan key comport with the approach
+preprocessing has always used to deal with DESC columns (which is
+described by comments above _bt_fix_scankey_strategy).
+
+Oversight in commit commit b3f1a13f, which made nbtree preprocessing
+perform transformations on skip array inequalities that can reduce the
+total number of index searches.
+
+Author: Peter Geoghegan <pg@bowt.ie>
+Reported-By: Natalya Aksman <natalya@timescale.com>
+Discussion: https://postgr.es/m/19049-b7df801e71de41b2@postgresql.org
+Backpatch-through: 18_|_
