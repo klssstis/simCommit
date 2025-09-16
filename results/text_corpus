@@ -20158,4 +20158,25 @@ total number of index searches.
 Author: Peter Geoghegan <pg@bowt.ie>
 Reported-By: Natalya Aksman <natalya@timescale.com>
 Discussion: https://postgr.es/m/19049-b7df801e71de41b2@postgresql.org
-Backpatch-through: 18_|_
+Backpatch-through: 18_|_Treat JsonConstructorExpr as non-strict
+
+JsonConstructorExpr can produce non-NULL output with a NULL input, so
+it should be treated as a non-strict construct.  Failing to do so can
+lead to incorrect query behavior.
+
+For example, in the reported case, when pulling up a subquery that is
+under an outer join, if the subquery's target list contains a
+JsonConstructorExpr that uses subquery variables and it is mistakenly
+treated as strict, it will be pulled up without being wrapped in a
+PlaceHolderVar.  As a result, the expression will be evaluated at the
+wrong place and will not be forced to null when the outer join should
+do so.
+
+Back-patch to v16 where JsonConstructorExpr was introduced.
+
+Bug: #19046
+Reported-by: Runyuan He <runyuan@berkeley.edu>
+Author: Tender Wang <tndrwang@gmail.com>
+Co-authored-by: Richard Guo <guofenglinux@gmail.com>
+Discussion: https://postgr.es/m/19046-765b6602b0a8cfdf@postgresql.org
+Backpatch-through: 16_|_
