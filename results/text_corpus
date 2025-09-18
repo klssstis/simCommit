@@ -20179,4 +20179,19 @@ Reported-by: Runyuan He <runyuan@berkeley.edu>
 Author: Tender Wang <tndrwang@gmail.com>
 Co-authored-by: Richard Guo <guofenglinux@gmail.com>
 Discussion: https://postgr.es/m/19046-765b6602b0a8cfdf@postgresql.org
-Backpatch-through: 16_|_
+Backpatch-through: 16_|_Calculate agglevelsup correctly when Aggref contains a CTE.
+
+If an aggregate function call contains a sub-select that has
+an RTE referencing a CTE outside the aggregate, we must treat
+that reference like a Var referencing the CTE's query level
+for purposes of determining the aggregate's level.  Otherwise
+we might reach the nonsensical conclusion that the aggregate
+should be evaluated at some query level higher than the CTE,
+ending in a planner error or a broken plan tree that causes
+executor failures.
+
+Bug: #19055
+Reported-by: BugForge <dllggyx@outlook.com>
+Author: Tom Lane <tgl@sss.pgh.pa.us>
+Discussion: https://postgr.es/m/19055-6970cfa8556a394d@postgresql.org
+Backpatch-through: 13_|_
