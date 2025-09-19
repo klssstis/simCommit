@@ -20194,4 +20194,26 @@ Bug: #19055
 Reported-by: BugForge <dllggyx@outlook.com>
 Author: Tom Lane <tgl@sss.pgh.pa.us>
 Discussion: https://postgr.es/m/19055-6970cfa8556a394d@postgresql.org
-Backpatch-through: 13_|_
+Backpatch-through: 13_|_Fix EPQ crash from missing partition pruning state in EState
+
+Commit bb3ec16e14 moved partition pruning metadata into PlannedStmt.
+At executor startup this metadata is used to initialize the EState
+fields es_part_prune_infos, es_part_prune_states, and
+es_part_prune_results.  EvalPlanQualStart() failed to copy those
+fields into the child EState, causing NULL dereference when Append
+ran partition pruning during a recheck. This can occur with DELETE
+or UPDATE on partitioned tables that use runtime pruning, e.g. with
+generic plans.
+
+Fix by copying all partition pruning state into the EPQ estate.
+
+Add an isolation test that reproduces the crash with concurrent
+UPDATE and DELETE on a partitioned table, where the DELETE session
+hits the crash during its EPQ recheck after the UPDATE commits.
+
+Bug: #19056
+Reported-by: Fei Changhong <feichanghong@qq.com>
+Diagnozed-by: Fei Changhong <feichanghong@qq.com>
+Author: David Rowley <dgrowleyml@gmail.com>
+Co-authored-by: Amit Langote <amitlangote09@gmail.com>
+Discussion: https://postgr.es/m/19056-a677cef9b54d76a0%40postgresql.org_|_
