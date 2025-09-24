@@ -20216,4 +20216,20 @@ Reported-by: Fei Changhong <feichanghong@qq.com>
 Diagnozed-by: Fei Changhong <feichanghong@qq.com>
 Author: David Rowley <dgrowleyml@gmail.com>
 Co-authored-by: Amit Langote <amitlangote09@gmail.com>
-Discussion: https://postgr.es/m/19056-a677cef9b54d76a0%40postgresql.org_|_
+Discussion: https://postgr.es/m/19056-a677cef9b54d76a0%40postgresql.org_|_Fix LOCK_TIMEOUT handling during parallel apply.
+
+Previously, the parallel apply worker used SIGINT to receive a graceful
+shutdown signal from the leader apply worker. However, SIGINT is also used
+by the LOCK_TIMEOUT handler to trigger a query-cancel interrupt. This
+overlap caused the parallel apply worker to miss LOCK_TIMEOUT signals,
+leading to incorrect behavior during lock wait/contention.
+
+This patch resolves the conflict by switching the graceful shutdown signal
+from SIGINT to SIGUSR2.
+
+Reported-by: Zane Duffield <duffieldzane@gmail.com>
+Diagnosed-by: Zhijie Hou <houzj.fnst@fujitsu.com>
+Author: Hayato Kuroda <kuroda.hayato@fujitsu.com>
+Reviewed-by: Amit Kapila <amit.kapila16@gmail.com>
+Backpatch-through: 16, where it was introduced
+Discussion: https://postgr.es/m/CACMiCkXyC4au74kvE2g6Y=mCEF8X6r-Ne_ty4r7qWkUjRE4+oQ@mail.gmail.com_|_
