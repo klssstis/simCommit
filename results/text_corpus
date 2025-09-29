@@ -20232,4 +20232,34 @@ Diagnosed-by: Zhijie Hou <houzj.fnst@fujitsu.com>
 Author: Hayato Kuroda <kuroda.hayato@fujitsu.com>
 Reviewed-by: Amit Kapila <amit.kapila16@gmail.com>
 Backpatch-through: 16, where it was introduced
-Discussion: https://postgr.es/m/CACMiCkXyC4au74kvE2g6Y=mCEF8X6r-Ne_ty4r7qWkUjRE4+oQ@mail.gmail.com_|_
+Discussion: https://postgr.es/m/CACMiCkXyC4au74kvE2g6Y=mCEF8X6r-Ne_ty4r7qWkUjRE4+oQ@mail.gmail.com_|_Improve planner's width estimates for set operations
+
+For UNION, EXCEPT and INTERSECT, we were not very good at estimating the
+PathTarget.width for the set operation.  Since the targetlist of the set
+operation is made up of Vars with varno==0, this would result in
+get_expr_width() applying a default estimate based on the Var's type
+rather than taking width estimates from any relation's statistics.
+
+Here we attempt to improve the situation by looking at the width estimates
+for the set operation child paths and calculating the average width of the
+relevant child paths weighted over the estimated number of rows.  For
+UNION and INTERSECT, the relevant paths to look at are *all* child paths.
+For EXCEPT, since we don't return rows from the right-hand child (only
+possibly remove left-hand rows matching those), we use only the left-hand
+child for width estimates.
+
+This also adjusts the hashed-UNION Path's PathTarget to use the same
+PathTarget as its Append subpath.  Both PathTargets will be the same and
+are void of any resjunk columns, per generate_append_tlist().  Making
+the AggPath use the same PathTarget saves having to adjust the "width"
+of the AggPath's PathTarget too.
+
+This was reported as a bug by sunw.fnst, but it's not something we ever
+claimed to do properly.  Plus, if we were to adjust this in back
+branches, plans could change as the estimated input sizes to Sorts and
+Hash Aggregates could go up or down.  Plan choices aren't something we
+want to destabilize in stable versions.
+
+Reported-by: sunw.fnst <936739278@qq.com>
+Author: David Rowley <drowleyml@gmail.com>
+Discussion: https://postgr.es/m/tencent_34CF8017AB81944A4C08DD089D410AB6C306@qq.com_|_
