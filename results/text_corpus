@@ -20262,4 +20262,21 @@ want to destabilize in stable versions.
 
 Reported-by: sunw.fnst <936739278@qq.com>
 Author: David Rowley <drowleyml@gmail.com>
-Discussion: https://postgr.es/m/tencent_34CF8017AB81944A4C08DD089D410AB6C306@qq.com_|_
+Discussion: https://postgr.es/m/tencent_34CF8017AB81944A4C08DD089D410AB6C306@qq.com_|_Fix reuse-after-free hazard in dead_items_reset
+
+In similar vein to commit ccc8194e427, a reset instance of a shared
+memory TID store happened to occupy the same private memory as the old
+one for the entry point, since the chunk freed after the last round
+of index vacuuming was put on the context's freelist. The failure
+to update the vacrel->dead_items pointer was evident by nudging the
+system to allocate memory in a different area. This was not discovered
+at the time of the earlier commit since our regression tests didn't
+cover multiple index passes with parallel vacuum.
+
+Backpatch to v17, when TidStore came in.
+
+Author: Kevin Oommen Anish <kevin.o@zohocorp.com>
+Reviewed-by: Richard Guo <guofenglinux@gmail.com>
+Tested-by: Richard Guo <guofenglinux@gmail.com>
+Discussion: https://postgr.es/m/199a07cbdfc.7a1c4aac25838.1675074408277594551%40zohocorp.com
+Backpatch-through: 17_|_
