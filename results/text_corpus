@@ -20279,4 +20279,41 @@ Author: Kevin Oommen Anish <kevin.o@zohocorp.com>
 Reviewed-by: Richard Guo <guofenglinux@gmail.com>
 Tested-by: Richard Guo <guofenglinux@gmail.com>
 Discussion: https://postgr.es/m/199a07cbdfc.7a1c4aac25838.1675074408277594551%40zohocorp.com
-Backpatch-through: 17_|_
+Backpatch-through: 17_|_Remove state.tmp when failing to save a replication slot
+
+An error happening while a slot data is saved on disk in
+SaveSlotToPath() could cause a state.tmp file (temporary file holding
+the slot state data, renamed to its permanent name at the end of the
+function) to remain around after it has been created.  This temporary
+file is created with O_EXCL, meaning that if an existing state.tmp is
+found, its creation would fail.  This would prevent the slot data to be
+saved, requiring a manual intervention to remove state.tmp before being
+able to save again a slot.  Possible scenarios where this temporary file
+could remain on disk is for example a ENOSPC case (no disk space) while
+writing, syncing or renaming it.  The bug reports point to a write
+failure as the principal cause of the problems.
+
+Using O_TRUNC has been argued back in 2019 as a potential solution to
+discard any temporary file that could exist.  This solution was rejected
+as O_EXCL can also act as a safety measure when saving the slot state,
+crash recovery offering cleanup guarantees post-crash.  This commit uses
+the alternative approach that has been suggested by Andres Freund back
+in 2019.  When the temporary state file cannot be written, synced,
+closed or renamed (note: not when created!), an unlink() is used to
+remove the temporary state file while holding the in-progress I/O
+LWLock, so as any follow-up attempts to save a slot's data would not
+choke on an existing file that remained around because of a previous
+failure.
+
+This problem has been reported a few times across the years, going back
+to 2019, but for some reason I have never come back to do something
+about it and it has been forgotten.  A recent report has reminded me
+that this was still a problem.
+
+Reported-by: Kevin K Biju <kevinkbiju@gmail.com>
+Reported-by: Sergei Kornilov <sk@zsrv.org>
+Reported-by: Grigory Smolkin <g.smolkin@postgrespro.ru>
+Discussion: https://postgr.es/m/CAM45KeHa32soKL_G8Vk38CWvTBeOOXcsxAPAs7Jt7yPRf2mbVA@mail.gmail.com
+Discussion: https://postgr.es/m/3559061693910326@qy4q4a6esb2lebnz.sas.yp-c.yandex.net
+Discussion: https://postgr.es/m/08bbfab1-a61d-3750-fc18-4ab2c1aa7f09@postgrespro.ru
+Backpatch-through: 13_|_
