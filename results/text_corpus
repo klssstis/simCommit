@@ -20316,4 +20316,19 @@ Reported-by: Grigory Smolkin <g.smolkin@postgrespro.ru>
 Discussion: https://postgr.es/m/CAM45KeHa32soKL_G8Vk38CWvTBeOOXcsxAPAs7Jt7yPRf2mbVA@mail.gmail.com
 Discussion: https://postgr.es/m/3559061693910326@qy4q4a6esb2lebnz.sas.yp-c.yandex.net
 Discussion: https://postgr.es/m/08bbfab1-a61d-3750-fc18-4ab2c1aa7f09@postgrespro.ru
+Backpatch-through: 13_|_Remove overzealous _bt_killitems assertion.
+
+An assertion in _bt_killitems expected the scan's currPos state to
+contain a valid LSN, saved from when currPos's page was initially read.
+The assertion failed to account for the fact that even logged relations
+can have leaf pages with an invalid LSN when built with wal_level set to
+"minimal".  Remove the faulty assertion.
+
+Oversight in commit e6eed40e (though note that the assertion was
+backpatched to stable branches before 18 by commit 7c319f54).
+
+Author: Peter Geoghegan <pg@bowt.ie>
+Reported-By: Matthijs van der Vleuten <postgresql@zr40.nl>
+Bug: #19082
+Discussion: https://postgr.es/m/19082-628e62160dbbc1c1@postgresql.org
 Backpatch-through: 13_|_
