@@ -20331,4 +20331,72 @@ Author: Peter Geoghegan <pg@bowt.ie>
 Reported-By: Matthijs van der Vleuten <postgresql@zr40.nl>
 Bug: #19082
 Discussion: https://postgr.es/m/19082-628e62160dbbc1c1@postgresql.org
-Backpatch-through: 13_|_
+Backpatch-through: 13_|_Stop creating constraints during DETACH CONCURRENTLY
+
+Commit 71f4c8c6f74b (which implemented DETACH CONCURRENTLY) added code
+to create a separate table constraint when a table is detached
+concurrently, identical to the partition constraint, on the theory that
+such a constraint was needed in case the optimizer had constructed any
+query plans that depended on the constraint being there.  However, that
+theory was apparently bogus because any such plans would be invalidated.
+
+For hash partitioning, those constraints are problematic, because their
+expressions reference the OID of the parent partitioned table, to which
+the detached table is no longer related; this causes all sorts of
+problems (such as inability of restoring a pg_dump of that table, and
+the table no longer working properly if the partitioned table is later
+dropped).
+
+We'd like to get rid of all those constraints.  In fact, for branch
+master, do that -- no longer create any substitute constraints.
+However, out of fear that some users might somehow depend on these
+constraints for other partitioning strategies, for stable branches
+(back to 14, which added DETACH CONCURRENTLY), only do it for hash
+partitioning.
+
+(If you repeatedly DETACH CONCURRENTLY and then ATTACH a partition, then
+with this constraint addition you don't need to scan the table in the
+ATTACH step, which presumably is good.  But if users really valued this
+feature, they would have requested that it worked for non-concurrent
+DETACH also.)
+
+Author: Haiyang Li <mohen.lhy@alibaba-inc.com>
+Reported-by: Fei Changhong <feichanghong@qq.com>
+Reported-by: Haiyang Li <mohen.lhy@alibaba-inc.com>
+Backpatch-through: 14
+Discussion: https://postgr.es/m/18371-7fef49f63de13f02@postgresql.org
+Discussion: https://postgr.es/m/19070-781326347ade7c57@postgresql.org_|_Stop creating constraints during DETACH CONCURRENTLY
+
+Commit 71f4c8c6f74b (which implemented DETACH CONCURRENTLY) added code
+to create a separate table constraint when a table is detached
+concurrently, identical to the partition constraint, on the theory that
+such a constraint was needed in case the optimizer had constructed any
+query plans that depended on the constraint being there.  However, that
+theory was apparently bogus because any such plans would be invalidated.
+
+For hash partitioning, those constraints are problematic, because their
+expressions reference the OID of the parent partitioned table, to which
+the detached table is no longer related; this causes all sorts of
+problems (such as inability of restoring a pg_dump of that table, and
+the table no longer working properly if the partitioned table is later
+dropped).
+
+We'd like to get rid of all those constraints.  In fact, for branch
+master, do that -- no longer create any substitute constraints.
+However, out of fear that some users might somehow depend on these
+constraints for other partitioning strategies, for stable branches
+(back to 14, which added DETACH CONCURRENTLY), only do it for hash
+partitioning.
+
+(If you repeatedly DETACH CONCURRENTLY and then ATTACH a partition, then
+with this constraint addition you don't need to scan the table in the
+ATTACH step, which presumably is good.  But if users really valued this
+feature, they would have requested that it worked for non-concurrent
+DETACH also.)
+
+Author: Haiyang Li <mohen.lhy@alibaba-inc.com>
+Reported-by: Fei Changhong <feichanghong@qq.com>
+Reported-by: Haiyang Li <mohen.lhy@alibaba-inc.com>
+Backpatch-through: 14
+Discussion: https://postgr.es/m/18371-7fef49f63de13f02@postgresql.org
+Discussion: https://postgr.es/m/19070-781326347ade7c57@postgresql.org_|_
