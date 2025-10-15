@@ -20399,4 +20399,34 @@ Reported-by: Fei Changhong <feichanghong@qq.com>
 Reported-by: Haiyang Li <mohen.lhy@alibaba-inc.com>
 Backpatch-through: 14
 Discussion: https://postgr.es/m/18371-7fef49f63de13f02@postgresql.org
-Discussion: https://postgr.es/m/19070-781326347ade7c57@postgresql.org_|_
+Discussion: https://postgr.es/m/19070-781326347ade7c57@postgresql.org_|_Fix EvalPlanQual handling of foreign/custom joins in ExecScanFetch.
+
+If inside an EPQ recheck, ExecScanFetch would run the recheck method
+function for foreign/custom joins even if they aren't descendant nodes
+in the EPQ recheck plan tree, which is problematic at least in the
+foreign-join case, because such a foreign join isn't guaranteed to have
+an alternative local-join plan required for running the recheck method
+function; in the postgres_fdw case this could lead to a segmentation
+fault or an assert failure in an assert-enabled build when running the
+recheck method function.
+
+Even if inside an EPQ recheck, any scan nodes that aren't descendant
+ones in the EPQ recheck plan tree should be normally processed by using
+the access method function; fix by modifying ExecScanFetch so that if
+inside an EPQ recheck, it runs the recheck method function for
+foreign/custom joins that are descendant nodes in the EPQ recheck plan
+tree as before and runs the access method function for foreign/custom
+joins that aren't.
+
+This fix also adds to postgres_fdw an isolation test for an EPQ recheck
+that caused issues stated above.
+
+Oversight in commit 385f337c9.
+
+Reported-by: Kristian Lejao <kristianlejao@gmail.com>
+Author: Masahiko Sawada <sawada.mshk@gmail.com>
+Co-authored-by: Etsuro Fujita <etsuro.fujita@gmail.com>
+Reviewed-by: Michael Paquier <michael@paquier.xyz>
+Reviewed-by: Etsuro Fujita <etsuro.fujita@gmail.com>
+Discussion: https://postgr.es/m/CAD21AoBpo6Gx55FBOW+9s5X=nUw3Xpq64v35fpDEKsTERnc4TQ@mail.gmail.com
+Backpatch-through: 13_|_
