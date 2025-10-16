@@ -20429,4 +20429,35 @@ Co-authored-by: Etsuro Fujita <etsuro.fujita@gmail.com>
 Reviewed-by: Michael Paquier <michael@paquier.xyz>
 Reviewed-by: Etsuro Fujita <etsuro.fujita@gmail.com>
 Discussion: https://postgr.es/m/CAD21AoBpo6Gx55FBOW+9s5X=nUw3Xpq64v35fpDEKsTERnc4TQ@mail.gmail.com
-Backpatch-through: 13_|_
+Backpatch-through: 13_|_Fix EPQ crash from missing partition directory in EState
+
+EvalPlanQualStart() failed to propagate es_partition_directory into
+the child EState used for EPQ rechecks. When execution time partition
+pruning ran during the EPQ scan, executor code dereferenced a NULL
+partition directory and crashed.
+
+Previously, propagating es_partition_directory into the EPQ EState was
+unnecessary because CreatePartitionPruneState(), which sets it on
+demand, also initialized the exec-pruning context.  After commit
+d47cbf474, CreatePartitionPruneState() now initializes only the init-
+time pruning context, leaving exec-pruning context initialization to
+ExecInitNode(). Since EvalPlanQualStart() runs only ExecInitNode() and
+not CreatePartitionPruneState(), it can encounter a NULL
+es_partition_directory.  Other executor fields initialized during
+CreatePartitionPruneState() are already copied into the child EState
+thanks to commit 8741e48e5d, but es_partition_directory was missed.
+
+Fix by borrowing the parent estate's  es_partition_directory in
+EvalPlanQualStart(), and by clearing that field in EvalPlanQualEnd()
+so the parent remains responsible for freeing the directory.
+
+Add an isolation test permutation that triggers EPQ with execution-
+time partition pruning, the case that reproduces this crash.
+
+Bug: #19078
+Reported-by: Yuri Zamyatin <yuri@yrz.am>
+Diagnosed-by: David Rowley <dgrowleyml@gmail.com>
+Author: David Rowley <dgrowleyml@gmail.com>
+Co-authored-by: Amit Langote <amitlangote09@gmail.com>
+Discussion: https://postgr.es/m/19078-dfd62f840a2c0766@postgresql.org
+Backpatch-through: 18_|_
