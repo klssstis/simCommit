@@ -20460,4 +20460,21 @@ Diagnosed-by: David Rowley <dgrowleyml@gmail.com>
 Author: David Rowley <dgrowleyml@gmail.com>
 Co-authored-by: Amit Langote <amitlangote09@gmail.com>
 Discussion: https://postgr.es/m/19078-dfd62f840a2c0766@postgresql.org
+Backpatch-through: 18_|_Fix reset of incorrect hash iterator in GROUPING SETS queries
+
+This fixes an unlikely issue when fetching GROUPING SET results from
+their internally stored hash tables.  It was possible in rare cases that
+the hash iterator would be set up incorrectly which could result in a
+crash.
+
+This was introduced in 4d143509c, so backpatch to v18.
+
+Many thanks to Yuri Zamyatin for reporting and helping to debug this
+issue.
+
+Bug: #19078
+Reported-by: Yuri Zamyatin <yuri@yrz.am>
+Author: David Rowley <dgrowleyml@gmail.com>
+Reviewed-by: Jeff Davis <pgsql@j-davis.com>
+Discussion: https://postgr.es/m/19078-dfd62f840a2c0766@postgresql.org
 Backpatch-through: 18_|_
