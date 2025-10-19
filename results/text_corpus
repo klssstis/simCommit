@@ -20477,4 +20477,29 @@ Reported-by: Yuri Zamyatin <yuri@yrz.am>
 Author: David Rowley <dgrowleyml@gmail.com>
 Reviewed-by: Jeff Davis <pgsql@j-davis.com>
 Discussion: https://postgr.es/m/19078-dfd62f840a2c0766@postgresql.org
-Backpatch-through: 18_|_
+Backpatch-through: 18_|_Fix determination of not-null constraint "locality" for inherited columns
+
+It is possible to have a non-inherited not-null constraint on an
+inherited column, but we were failing to preserve such constraints
+during pg_upgrade where the source is 17 or older, because of a bug in
+the pg_dump query for it.  Oversight in commit 14e87ffa5c54.  Fix that
+query.  In passing, touch-up a bogus nearby comment introduced by the
+same commit.
+
+In version 17, make the regression tests leave a table in this
+situation, so that this scenario is tested in the cross-version upgrade
+tests of 18 and up.
+
+Author: Dilip Kumar <dilipbalaut@gmail.com>
+Reported-by: Andrew Bille <andrewbille@gmail.com>
+Bug: #19074
+Backpatch-through: 18
+Discussion: https://postgr.es/m/19074-ae2548458cf0195c@postgresql.org_|_Fix pg_dump sorting of foreign key constraints
+
+Apparently, commit 04bc2c42f765 failed to notice that DO_FK_CONSTRAINT
+objects require identical handling as DO_CONSTRAINT ones, which causes
+some pg_upgrade tests in debug builds to fail spuriously.  Add that.
+
+Author: Álvaro Herrera <alvherre@kurilemu.de>
+Backpatch-through: 13
+Discussion: https://postgr.es/m/202510181201.k6y75v2tpf5r@alvherre.pgsql_|_
