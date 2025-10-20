@@ -20502,4 +20502,26 @@ some pg_upgrade tests in debug builds to fail spuriously.  Add that.
 
 Author: Álvaro Herrera <alvherre@kurilemu.de>
 Backpatch-through: 13
-Discussion: https://postgr.es/m/202510181201.k6y75v2tpf5r@alvherre.pgsql_|_
+Discussion: https://postgr.es/m/202510181201.k6y75v2tpf5r@alvherre.pgsql_|_Add static assertion that RELSEG_SIZE fits in an int.
+
+Our configure script intended to ensure this, but it supposed that
+expr(1) would report an error for integer overflow.  Maybe that
+was true when the code was written (commit 3c6248a82 of 2008-05-02),
+but all the modern expr's I tried will deliver bigger-than-int32
+results without complaint.  Moreover, if you use --with-segsize-blocks
+then there's no check at all.
+
+Ideally we'd add a test in configure itself to check that the value
+fits in int, but to do that we'd need to suppose that test(1) handles
+bigger-than-int32 numbers correctly.  Probably modern ones do, but
+that's an assumption I could do without; and I'm not too trusting
+about meson either.  Instead, let's install a static assertion, so
+that even people who ignore all the compiler warnings you get from
+such values will be forced to confront the fact that it won't work.
+
+This has been hazardous for awhile, but given that we hadn't heard
+a complaint about it till now, I don't feel a need to back-patch.
+
+Reported-by: Casey Shobe <casey.allen.shobe@icloud.com>
+Author: Tom Lane <tgl@sss.pgh.pa.us>
+Discussion: https://postgr.es/m/C5DC82D6-C76D-4E8F-BC2E-DF03EFC4FA24@icloud.com_|_
