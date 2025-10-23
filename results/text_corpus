@@ -20524,4 +20524,31 @@ a complaint about it till now, I don't feel a need to back-patch.
 
 Reported-by: Casey Shobe <casey.allen.shobe@icloud.com>
 Author: Tom Lane <tgl@sss.pgh.pa.us>
-Discussion: https://postgr.es/m/C5DC82D6-C76D-4E8F-BC2E-DF03EFC4FA24@icloud.com_|_
+Discussion: https://postgr.es/m/C5DC82D6-C76D-4E8F-BC2E-DF03EFC4FA24@icloud.com_|_Fix incorrect zero extension of Datum in JIT tuple deform code
+
+When JIT deformed tuples (controlled via the jit_tuple_deforming GUC),
+types narrower than sizeof(Datum) would be zero-extended up to Datum
+width.  This wasn't the same as what fetch_att() does in the standard
+tuple deforming code.  Logically the values are the same when fetching
+via the DatumGet*() marcos, but negative numbers are not the same in
+binary form.
+
+In the report, the problem was manifesting itself with:
+
+ERROR: could not find memoization table entry
+
+in a query which had a "Cache Mode: binary" Memoize node. However, it's
+currently unclear what else is affected.  Anything that uses
+datum_image_eq() or datum_image_hash() on a Datum from a tuple deformed by
+JIT could be affected, but it may not be limited to that.
+
+The fix for this is simple: use signed extension instead of zero
+extension.
+
+Many thanks to Emmanuel Touzery for reporting this issue and providing
+steps and backup which allowed the problem to easily be recreated.
+
+Reported-by: Emmanuel Touzery <emmanuel.touzery@plandela.si>
+Author: David Rowley <dgrowleyml@gmail.com>
+Discussion: https://postgr.es/m/DB8P194MB08532256D5BAF894F241C06393F3A@DB8P194MB0853.EURP194.PROD.OUTLOOK.COM
+Backpatch-through: 13_|_
