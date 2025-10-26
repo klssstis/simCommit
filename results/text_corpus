@@ -20551,4 +20551,24 @@ steps and backup which allowed the problem to easily be recreated.
 Reported-by: Emmanuel Touzery <emmanuel.touzery@plandela.si>
 Author: David Rowley <dgrowleyml@gmail.com>
 Discussion: https://postgr.es/m/DB8P194MB08532256D5BAF894F241C06393F3A@DB8P194MB0853.EURP194.PROD.OUTLOOK.COM
-Backpatch-through: 13_|_
+Backpatch-through: 13_|_Fix incorrect logic for caching ResultRelInfos for triggers
+
+When dealing with ResultRelInfos for partitions, there are cases where
+there are mixed requirements for the ri_RootResultRelInfo.  There are
+cases when the partition itself requires a NULL ri_RootResultRelInfo and
+in the same query, the same partition may require a ResultRelInfo with
+its parent set in ri_RootResultRelInfo.  This could cause the column
+mapping between the partitioned table and the partition not to be done
+which could result in crashes if the column attnums didn't match
+exactly.
+
+The fix is simple.  We now check that the ri_RootResultRelInfo matches
+what the caller passed to ExecGetTriggerResultRel() and only return a
+cached ResultRelInfo when the ri_RootResultRelInfo matches what the
+caller wants, otherwise we'll make a new one.
+
+Author: David Rowley <dgrowleyml@gmail.com>
+Author: Amit Langote <amitlangote09@gmail.com>
+Reported-by: Dmitry Fomin <fomin.list@gmail.com>
+Discussion: https://postgr.es/m/7DCE78D7-0520-4207-822B-92F60AEA14B4@gmail.com
+Backpatch-through: 15_|_
