@@ -20571,4 +20571,37 @@ Author: David Rowley <dgrowleyml@gmail.com>
 Author: Amit Langote <amitlangote09@gmail.com>
 Reported-by: Dmitry Fomin <fomin.list@gmail.com>
 Discussion: https://postgr.es/m/7DCE78D7-0520-4207-822B-92F60AEA14B4@gmail.com
-Backpatch-through: 15_|_
+Backpatch-through: 15_|_Simplify coding in ProcessQuery
+
+The original is pretty baroque for no apparent reason; arguably, commit
+2f9661311b83 should have done this.  Noted while reviewing related code
+for bug #18984.  This is cosmetic (though I'm surprised that my compiler
+generates shorter assembly this way), so no backpatch.
+
+Discussion: https://postgr.es/m/18984-0f4778a6599ac3ae@postgresql.org_|_Disable parallel plans for RIGHT_SEMI joins
+
+RIGHT_SEMI joins rely on the HEAP_TUPLE_HAS_MATCH flag to guarantee
+that only the first match for each inner tuple is considered.
+However, in a parallel hash join, the inner relation is stored in a
+shared global hash table that can be probed by multiple workers
+concurrently.  This allows different workers to inspect and set the
+match flags of the same inner tuples at the same time.
+
+If two workers probe the same inner tuple concurrently, both may see
+the match flag as unset and emit the same tuple, leading to duplicate
+output rows and violating RIGHT_SEMI join semantics.
+
+For now, we disable parallel plans for RIGHT_SEMI joins.  In the long
+term, it may be possible to support parallel execution by performing
+atomic operations on the match flag, for example using a CAS or
+similar mechanism.
+
+Backpatch to v18, where RIGHT_SEMI join was introduced.
+
+Bug: #19094
+Reported-by: Lori Corbani <Lori.Corbani@jax.org>
+Diagnosed-by: Tom Lane <tgl@sss.pgh.pa.us>
+Author: Richard Guo <guofenglinux@gmail.com>
+Reviewed-by: Tom Lane <tgl@sss.pgh.pa.us>
+Discussion: https://postgr.es/m/19094-6ed410eb5b256abd@postgresql.org
+Backpatch-through: 18_|_
