@@ -20604,4 +20604,22 @@ Diagnosed-by: Tom Lane <tgl@sss.pgh.pa.us>
 Author: Richard Guo <guofenglinux@gmail.com>
 Reviewed-by: Tom Lane <tgl@sss.pgh.pa.us>
 Discussion: https://postgr.es/m/19094-6ed410eb5b256abd@postgresql.org
-Backpatch-through: 18_|_
+Backpatch-through: 18_|_Add test tracking WAL receiver shutdown for primary_conninfo updates
+
+The test introduced by this commit checks that a reload of
+primary_conninfo leads to a WAL receiver restarted, by looking at the
+request generated in the server logs.  This is something for what there
+was no coverage.
+
+This has come up for a different patch, while discussing a regression
+where a WAL receiver should not be stopped while waiting for a new
+position to stream, like at the end of a timeline.  In the case of the
+other patch, we want to check that this log entry is not generated, but
+if the error message is reworded the test would become silently broken.
+The test of this commit ensures that we at least keep track the log
+message format, for a supported scenario.
+
+Extracted from a larger patch by the same author.
+
+Author: Xuneng Zhou <xunengzhou@gmail.com>
+Discussion: https://postgr.es/m/aQKlC1v2_MXGV6_9@paquier.xyz_|_
