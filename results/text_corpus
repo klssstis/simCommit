@@ -20622,4 +20622,56 @@ message format, for a supported scenario.
 Extracted from a larger patch by the same author.
 
 Author: Xuneng Zhou <xunengzhou@gmail.com>
-Discussion: https://postgr.es/m/aQKlC1v2_MXGV6_9@paquier.xyz_|_
+Discussion: https://postgr.es/m/aQKlC1v2_MXGV6_9@paquier.xyz_|_Add assertion check for WAL receiver state during stream-archive transition
+
+When the startup process switches from streaming to archive as WAL
+source, we avoid calling ShutdownWalRcv() if the WAL receiver is not
+streaming, based on WalRcvStreaming().  WALRCV_STOPPING is a state set
+by ShutdownWalRcv(), called only by the startup process, meaning that it
+should not be possible to reach this state while in
+WaitForWALToBecomeAvailable().
+
+This commit adds an assertion to make sure that a WAL receiver is never
+in a WALRCV_STOPPING state should the startup process attempt to reset
+InstallXLogFileSegmentActive.
+
+Idea suggested by Noah Misch.
+
+Author: Xuneng Zhou <xunengzhou@gmail.com>
+Discussion: https://postgr.es/m/19093-c4fff49a608f82a0@postgresql.org_|_Fix unconditional WAL receiver shutdown during stream-archive transition
+
+Commit b4f584f9d2a1 (affecting v15~, later backpatched down to 13 as of
+3635a0a35aaf) introduced an unconditional WAL receiver shutdown when
+switching from streaming to archive WAL sources.  This causes problems
+during a timeline switch, when a WAL receiver enters WALRCV_WAITING
+state but remains alive, waiting for instructions.
+
+The unconditional shutdown can break some monitoring scenarios as the
+WAL receiver gets repeatedly terminated and re-spawned, causing
+pg_stat_wal_receiver.status to show a "streaming" instead of "waiting"
+status, masking the fact that the WAL receiver is waiting for a new TLI
+and a new LSN to be able to continue streaming.
+
+This commit changes the WAL receiver behavior so as the shutdown becomes
+conditional, with InstallXLogFileSegmentActive being always reset to
+prevent the regression fixed by b4f584f9d2a1: only terminate the WAL
+receiver when it is actively streaming (WALRCV_STREAMING,
+WALRCV_STARTING, or WALRCV_RESTARTING).  When in WALRCV_WAITING state,
+just reset InstallXLogFileSegmentActive flag to allow archive
+restoration without killing the process.  WALRCV_STOPPED and
+WALRCV_STOPPING are not reachable states in this code path.  For the
+latter, the startup process is the one in charge of setting
+WALRCV_STOPPING via ShutdownWalRcv(), waiting for the WAL receiver to
+reach a WALRCV_STOPPED state after switching walRcvState, so
+WaitForWALToBecomeAvailable() cannot be reached while a WAL receiver is
+in a WALRCV_STOPPING state.
+
+A regression test is added to check that a WAL receiver is not stopped
+on timeline jump, that fails when the fix of this commit is reverted.
+
+Reported-by: Ryan Bird <ryanzxg@gmail.com>
+Author: Xuneng Zhou <xunengzhou@gmail.com>
+Reviewed-by: Noah Misch <noah@leadboat.com>
+Reviewed-by: Michael Paquier <michael@paquier.xyz>
+Discussion: https://postgr.es/m/19093-c4fff49a608f82a0@postgresql.org
+Backpatch-through: 13_|_
