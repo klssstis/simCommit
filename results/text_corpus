@@ -20674,4 +20674,62 @@ Author: Xuneng Zhou <xunengzhou@gmail.com>
 Reviewed-by: Noah Misch <noah@leadboat.com>
 Reviewed-by: Michael Paquier <michael@paquier.xyz>
 Discussion: https://postgr.es/m/19093-c4fff49a608f82a0@postgresql.org
-Backpatch-through: 13_|_
+Backpatch-through: 13_|_Avoid creating duplicate ordered append paths
+
+In generate_orderedappend_paths(), the function does not handle the
+case where the paths in total_subpaths and fractional_subpaths are
+identical.  This situation is not uncommon, and as a result, it may
+generate two exactly identical ordered append paths.
+
+Fix by checking whether total_subpaths and fractional_subpaths contain
+the same paths, and skipping creation of the ordered append path for
+the fractional case when they are identical.
+
+Given the lack of field complaints about this, I'm a bit hesitant to
+back-patch, but let's clean it up in HEAD.
+
+Author: Richard Guo <guofenglinux@gmail.com>
+Reviewed-by: Andrei Lepikhov <lepihov@gmail.com>
+Reviewed-by: Alexander Korotkov <aekorotkov@gmail.com>
+Discussion: https://postgr.es/m/CAMbWs4-OYsgA75tGGiBARt87G0y_z_GBTSLrzudcJxAzndYkYw@mail.gmail.com_|_Fix assertion failure in generate_orderedappend_paths()
+
+In generate_orderedappend_paths(), there is an assumption that a child
+relation's row estimate is always greater than zero.  There is an
+Assert verifying this assumption, and the estimate is also used to
+convert an absolute tuple count into a fraction.
+
+However, this assumption is not always valid -- for example, upper
+relations can have their row estimates unset, resulting in a value of
+zero.  This can cause an assertion failure in debug builds or lead to
+the tuple fraction being computed as infinity in production builds.
+
+To fix, use the row estimate from the cheapest_total path to compute
+the tuple fraction.  The row estimate in this path should already have
+been forced to a valid value.
+
+In passing, update the comment for generate_orderedappend_paths() to
+note that the function also considers the cheapest-fractional case
+when not all tuples need to be retrieved.  That is, it collects all
+the cheapest fractional paths and builds an ordered append path for
+each interesting ordering.
+
+Backpatch to v18, where this issue was introduced.
+
+Bug: #19102
+Reported-by: Kuntal Ghosh <kuntalghosh.2007@gmail.com>
+Author: Richard Guo <guofenglinux@gmail.com>
+Reviewed-by: Kuntal Ghosh <kuntalghosh.2007@gmail.com>
+Reviewed-by: Andrei Lepikhov <lepihov@gmail.com>
+Discussion: https://postgr.es/m/19102-93480667e1200169@postgresql.org
+Backpatch-through: 18_|_Add assertions checking for the startup process in WAL replay routines
+
+These assertions may prove to become useful to make sure that no process
+other than the startup process calls the routines where these checks are
+added, as we expect that these do not interfere with a WAL receiver
+switched to a "stopping" state by a startup process.
+
+The assumption that only the startup process can use this code has
+existed for many years, without a check enforcing it.
+
+Reviewed-by: Xuneng Zhou <xunengzhou@gmail.com>
+Discussion: https://postgr.es/m/aQmGeVLYl51y1m_0@paquier.xyz_|_
