@@ -20732,4 +20732,46 @@ The assumption that only the startup process can use this code has
 existed for many years, without a check enforcing it.
 
 Reviewed-by: Xuneng Zhou <xunengzhou@gmail.com>
-Discussion: https://postgr.es/m/aQmGeVLYl51y1m_0@paquier.xyz_|_
+Discussion: https://postgr.es/m/aQmGeVLYl51y1m_0@paquier.xyz_|_Fix pg_upgrade around multixid and mxoff wraparound
+
+pg_resetwal didn't accept multixid 0 or multixact offset UINT32_MAX,
+but they are both valid values that can appear in the control file.
+That caused pg_upgrade to fail if you tried to upgrade a cluster
+exactly at multixid or offset wraparound, because pg_upgrade calls
+pg_resetwal to restore multixid/offset on the new cluster to the
+values from the old cluster. To fix, allow those values in
+pg_resetwal.
+
+Fixes bugs #18863 and #18865 reported by Dmitry Kovalenko.
+
+Backpatch down to v15. Version 14 has the same bug, but the patch
+doesn't apply cleanly there. It could be made to work but it doesn't
+seem worth the effort given how rare it is to hit this problem with
+pg_upgrade, and how few people are upgrading to v14 anymore.
+
+Author: Maxim Orlov <orlovmg@gmail.com>
+Discussion: https://www.postgresql.org/message-id/CACG%3DezaApSMTjd%3DM2Sfn5Ucuggd3FG8Z8Qte8Xq9k5-%2BRQis-g@mail.gmail.com
+Discussion: https://www.postgresql.org/message-id/18863-72f08858855344a2@postgresql.org
+Discussion: https://www.postgresql.org/message-id/18865-d4c66cf35c2a67af@postgresql.org
+Backpatch-through: 15_|_Fix pg_upgrade around multixid and mxoff wraparound
+
+pg_resetwal didn't accept multixid 0 or multixact offset UINT32_MAX,
+but they are both valid values that can appear in the control file.
+That caused pg_upgrade to fail if you tried to upgrade a cluster
+exactly at multixid or offset wraparound, because pg_upgrade calls
+pg_resetwal to restore multixid/offset on the new cluster to the
+values from the old cluster. To fix, allow those values in
+pg_resetwal.
+
+Fixes bugs #18863 and #18865 reported by Dmitry Kovalenko.
+
+Backpatch down to v15. Version 14 has the same bug, but the patch
+doesn't apply cleanly there. It could be made to work but it doesn't
+seem worth the effort given how rare it is to hit this problem with
+pg_upgrade, and how few people are upgrading to v14 anymore.
+
+Author: Maxim Orlov <orlovmg@gmail.com>
+Discussion: https://www.postgresql.org/message-id/CACG%3DezaApSMTjd%3DM2Sfn5Ucuggd3FG8Z8Qte8Xq9k5-%2BRQis-g@mail.gmail.com
+Discussion: https://www.postgresql.org/message-id/18863-72f08858855344a2@postgresql.org
+Discussion: https://www.postgresql.org/message-id/18865-d4c66cf35c2a67af@postgresql.org
+Backpatch-through: 15_|_
