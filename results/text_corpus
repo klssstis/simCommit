@@ -20774,4 +20774,94 @@ Author: Maxim Orlov <orlovmg@gmail.com>
 Discussion: https://www.postgresql.org/message-id/CACG%3DezaApSMTjd%3DM2Sfn5Ucuggd3FG8Z8Qte8Xq9k5-%2BRQis-g@mail.gmail.com
 Discussion: https://www.postgresql.org/message-id/18863-72f08858855344a2@postgresql.org
 Discussion: https://www.postgresql.org/message-id/18865-d4c66cf35c2a67af@postgresql.org
-Backpatch-through: 15_|_
+Backpatch-through: 15_|_Fix bug where we truncated CLOG that was still needed by LISTEN/NOTIFY
+
+The async notification queue contains the XID of the sender, and when
+processing notifications we call TransactionIdDidCommit() on the
+XID. But we had no safeguards to prevent the CLOG segments containing
+those XIDs from being truncated away. As a result, if a backend didn't
+for some reason process its notifications for a long time, or when a
+new backend issued LISTEN, you could get an error like:
+
+test=# listen c21;
+ERROR:  58P01: could not access status of transaction 14279685
+DETAIL:  Could not open file "pg_xact/000D": No such file or directory.
+LOCATION:  SlruReportIOError, slru.c:1087
+
+To fix, make VACUUM "freeze" the XIDs in the async notification queue
+before truncating the CLOG. Old XIDs are replaced with
+FrozenTransactionId or InvalidTransactionId.
+
+Note: This commit is not a full fix. A race condition remains, where a
+backend is executing asyncQueueReadAllNotifications() and has just
+made a local copy of an async SLRU page which contains old XIDs, while
+vacuum concurrently truncates the CLOG covering those XIDs. When the
+backend then calls TransactionIdDidCommit() on those XIDs from the
+local copy, you still get the error. The next commit will fix that
+remaining race condition.
+
+This was first reported by Sergey Zhuravlev in 2021, with many other
+people hitting the same issue later. Thanks to:
+- Alexandra Wang, Daniil Davydov, Andrei Varashen and Jacques Combrink
+  for investigating and providing reproducable test cases,
+- Matheus Alcantara and Arseniy Mukhin for review and earlier proposed
+  patches to fix this,
+- Álvaro Herrera and Masahiko Sawada for reviews,
+- Yura Sokolov aka funny-falcon for the idea of marking transactions
+  as committed in the notification queue, and
+- Joel Jacobson for the final patch version. I hope I didn't forget
+  anyone.
+
+Backpatch to all supported versions. I believe the bug goes back all
+the way to commit d1e027221d, which introduced the SLRU-based async
+notification queue.
+
+Discussion: https://www.postgresql.org/message-id/16961-25f29f95b3604a8a@postgresql.org
+Discussion: https://www.postgresql.org/message-id/18804-bccbbde5e77a68c2@postgresql.org
+Discussion: https://www.postgresql.org/message-id/CAK98qZ3wZLE-RZJN_Y%2BTFjiTRPPFPBwNBpBi5K5CU8hUHkzDpw@mail.gmail.com
+Backpatch-through: 14_|_Fix bug where we truncated CLOG that was still needed by LISTEN/NOTIFY
+
+The async notification queue contains the XID of the sender, and when
+processing notifications we call TransactionIdDidCommit() on the
+XID. But we had no safeguards to prevent the CLOG segments containing
+those XIDs from being truncated away. As a result, if a backend didn't
+for some reason process its notifications for a long time, or when a
+new backend issued LISTEN, you could get an error like:
+
+test=# listen c21;
+ERROR:  58P01: could not access status of transaction 14279685
+DETAIL:  Could not open file "pg_xact/000D": No such file or directory.
+LOCATION:  SlruReportIOError, slru.c:1087
+
+To fix, make VACUUM "freeze" the XIDs in the async notification queue
+before truncating the CLOG. Old XIDs are replaced with
+FrozenTransactionId or InvalidTransactionId.
+
+Note: This commit is not a full fix. A race condition remains, where a
+backend is executing asyncQueueReadAllNotifications() and has just
+made a local copy of an async SLRU page which contains old XIDs, while
+vacuum concurrently truncates the CLOG covering those XIDs. When the
+backend then calls TransactionIdDidCommit() on those XIDs from the
+local copy, you still get the error. The next commit will fix that
+remaining race condition.
+
+This was first reported by Sergey Zhuravlev in 2021, with many other
+people hitting the same issue later. Thanks to:
+- Alexandra Wang, Daniil Davydov, Andrei Varashen and Jacques Combrink
+  for investigating and providing reproducable test cases,
+- Matheus Alcantara and Arseniy Mukhin for review and earlier proposed
+  patches to fix this,
+- Álvaro Herrera and Masahiko Sawada for reviews,
+- Yura Sokolov aka funny-falcon for the idea of marking transactions
+  as committed in the notification queue, and
+- Joel Jacobson for the final patch version. I hope I didn't forget
+  anyone.
+
+Backpatch to all supported versions. I believe the bug goes back all
+the way to commit d1e027221d, which introduced the SLRU-based async
+notification queue.
+
+Discussion: https://www.postgresql.org/message-id/16961-25f29f95b3604a8a@postgresql.org
+Discussion: https://www.postgresql.org/message-id/18804-bccbbde5e77a68c2@postgresql.org
+Discussion: https://www.postgresql.org/message-id/CAK98qZ3wZLE-RZJN_Y%2BTFjiTRPPFPBwNBpBi5K5CU8hUHkzDpw@mail.gmail.com
+Backpatch-through: 14_|_
