@@ -20864,4 +20864,36 @@ notification queue.
 Discussion: https://www.postgresql.org/message-id/16961-25f29f95b3604a8a@postgresql.org
 Discussion: https://www.postgresql.org/message-id/18804-bccbbde5e77a68c2@postgresql.org
 Discussion: https://www.postgresql.org/message-id/CAK98qZ3wZLE-RZJN_Y%2BTFjiTRPPFPBwNBpBi5K5CU8hUHkzDpw@mail.gmail.com
-Backpatch-through: 14_|_
+Backpatch-through: 14_|_Fix Assert failure in EXPLAIN ANALYZE MERGE with a concurrent update.
+
+When instrumenting a MERGE command containing both WHEN NOT MATCHED BY
+SOURCE and WHEN NOT MATCHED BY TARGET actions using EXPLAIN ANALYZE, a
+concurrent update of the target relation could lead to an Assert
+failure in show_modifytable_info(). In a non-assert build, this would
+lead to an incorrect value for "skipped" tuples in the EXPLAIN output,
+rather than a crash.
+
+This could happen if the concurrent update caused a matched row to no
+longer match, in which case ExecMerge() treats the single originally
+matched row as a pair of not matched rows, and potentially executes 2
+not-matched actions for the single source row. This could then lead to
+a state where the number of rows processed by the ModifyTable node
+exceeds the number of rows produced by its source node, causing
+"skipped_path" in show_modifytable_info() to be negative, triggering
+the Assert.
+
+Fix this in ExecMergeMatched() by incrementing the instrumentation
+tuple count on the source node whenever a concurrent update of this
+kind is detected, if both kinds of merge actions exist, so that the
+number of source rows matches the number of actions potentially
+executed, and the "skipped" tuple count is correct.
+
+Back-patch to v17, where support for WHEN NOT MATCHED BY SOURCE
+actions was introduced.
+
+Bug: #19111
+Reported-by: Dilip Kumar <dilipbalaut@gmail.com>
+Author: Dean Rasheed <dean.a.rasheed@gmail.com>
+Reviewed-by: Dilip Kumar <dilipbalaut@gmail.com>
+Discussion: https://postgr.es/m/19111-5b06624513d301b3@postgresql.org
+Backpatch-through: 17_|_
