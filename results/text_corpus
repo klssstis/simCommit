@@ -20896,4 +20896,38 @@ Reported-by: Dilip Kumar <dilipbalaut@gmail.com>
 Author: Dean Rasheed <dean.a.rasheed@gmail.com>
 Reviewed-by: Dilip Kumar <dilipbalaut@gmail.com>
 Discussion: https://postgr.es/m/19111-5b06624513d301b3@postgresql.org
-Backpatch-through: 17_|_
+Backpatch-through: 17_|_Don't allow CTEs to determine semantic levels of aggregates.
+
+The fix for bug #19055 (commit b0cc0a71e) allowed CTE references in
+sub-selects within aggregate functions to affect the semantic levels
+assigned to such aggregates.  It turns out this broke some related
+cases, leading to assertion failures or strange planner errors such
+as "unexpected outer reference in CTE query".  After experimenting
+with some alternative rules for assigning the semantic level in
+such cases, we've come to the conclusion that changing the level
+is more likely to break things than be helpful.
+
+Therefore, this patch undoes what b0cc0a71e changed, and instead
+installs logic to throw an error if there is any reference to a
+CTE that's below the semantic level that standard SQL rules would
+assign to the aggregate based on its contained Var and Aggref nodes.
+(The SQL standard disallows sub-selects within aggregate functions,
+so it can't reach the troublesome case and hence has no rule for
+what to do.)
+
+Perhaps someone will come along with a legitimate query that this
+logic rejects, and if so probably the example will help us craft
+a level-adjustment rule that works better than what b0cc0a71e did.
+I'm not holding my breath for that though, because the previous
+logic had been there for a very long time before bug #19055 without
+complaints, and that bug report sure looks to have originated from
+fuzzing not from real usage.
+
+Like b0cc0a71e, back-patch to all supported branches, though
+sadly that no longer includes v13.
+
+Bug: #19106
+Reported-by: Kamil Monicz <kamil@monicz.dev>
+Author: Tom Lane <tgl@sss.pgh.pa.us>
+Discussion: https://postgr.es/m/19106-9dd3668a0734cd72@postgresql.org
+Backpatch-through: 14_|_
