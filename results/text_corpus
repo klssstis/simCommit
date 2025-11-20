@@ -20930,4 +20930,12 @@ Bug: #19106
 Reported-by: Kamil Monicz <kamil@monicz.dev>
 Author: Tom Lane <tgl@sss.pgh.pa.us>
 Discussion: https://postgr.es/m/19106-9dd3668a0734cd72@postgresql.org
+Backpatch-through: 14_|_Print new OldestXID value in pg_resetwal when it's being changed
+
+Commit 74cf7d46a91d added the --oldest-transaction-id option to
+pg_resetwal, but forgot to update the code that prints all the new
+values that are being set. Fix that.
+
+Reviewed-by: Bertrand Drouvot <bertranddrouvot.pg@gmail.com>
+Discussion: https://www.postgresql.org/message-id/5461bc85-e684-4531-b4d2-d2e57ad18cba@iki.fi
 Backpatch-through: 14_|_
