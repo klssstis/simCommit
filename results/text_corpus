@@ -20938,4 +20938,16 @@ values that are being set. Fix that.
 
 Reviewed-by: Bertrand Drouvot <bertranddrouvot.pg@gmail.com>
 Discussion: https://www.postgresql.org/message-id/5461bc85-e684-4531-b4d2-d2e57ad18cba@iki.fi
-Backpatch-through: 14_|_
+Backpatch-through: 14_|_Don't call simplify_aggref with a NULL PlannerInfo
+
+42473b3b3 added prosupport infrastructure to allow simplification of
+Aggrefs during constant-folding.  In some cases the context->root that's
+given to eval_const_expressions_mutator() can be NULL.  42473b3b3 failed
+to take that into account, which could result in a crash.
+
+To fix, add a check and only call simplify_aggref() when the PlannerInfo
+is set.
+
+Author: David Rowley <dgrowleyml@gmail.com>
+Reported-by: Birler, Altan <altan.birler@tum.de>
+Discussion: https://postgr.es/m/132d4da23b844d5ab9e352d34096eab5@tum.de_|_
