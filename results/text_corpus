@@ -20950,4 +20950,21 @@ is set.
 
 Author: David Rowley <dgrowleyml@gmail.com>
 Reported-by: Birler, Altan <altan.birler@tum.de>
-Discussion: https://postgr.es/m/132d4da23b844d5ab9e352d34096eab5@tum.de_|_
+Discussion: https://postgr.es/m/132d4da23b844d5ab9e352d34096eab5@tum.de_|_Fix text substring search for non-deterministic collations.
+
+Due to an off-by-one error, the code failed to find matches at the
+end of the haystack.  Fix by rewriting the loop.
+
+While at it, fix a comment that claimed that the function could find
+a zero-length match.  Such a match could send a caller into an endless
+loop.  However, zero-length matches only make sense with an empty
+search string, and that case is explicitly excluded by all callers.
+To make sure it stays that way, add an Assert and a comment.
+
+Bug: #19341
+Reported-by: Adam Warland <adam.warland@infor.com>
+Author: Laurenz Albe <laurenz.albe@cybertec.at>
+Reviewed-by: Heikki Linnakangas <hlinnaka@iki.fi>
+Reviewed-by: Tom Lane <tgl@sss.pgh.pa.us>
+Discussion: https://postgr.es/m/19341-1d9a22915edfec58@postgresql.org
+Backpatch-through: 18_|_
