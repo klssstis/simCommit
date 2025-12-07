@@ -20967,4 +20967,43 @@ Author: Laurenz Albe <laurenz.albe@cybertec.at>
 Reviewed-by: Heikki Linnakangas <hlinnaka@iki.fi>
 Reviewed-by: Tom Lane <tgl@sss.pgh.pa.us>
 Discussion: https://postgr.es/m/19341-1d9a22915edfec58@postgresql.org
-Backpatch-through: 18_|_
+Backpatch-through: 18_|_Handle constant inputs to corr() and related aggregates more precisely.
+
+The SQL standard says that corr() and friends should return NULL in
+the mathematically-undefined case where all the inputs in one of
+the columns have the same value.  We were checking that by seeing
+if the sums Sxx and Syy were zero, but that approach is very
+vulnerable to roundoff error: if a sum is close to zero but not
+exactly that, we'd come out with a pretty silly non-NULL result.
+
+Instead, directly track whether the inputs are all equal by
+remembering the common value in each column.  Once we detect
+that a new input is different from before, represent that by
+storing NaN for the common value.  (An objection to this scheme
+is that if the inputs are all NaN, we will consider that they
+were not all equal.  But under IEEE float arithmetic rules,
+one NaN is never equal to another, so this behavior is arguably
+correct.  Moreover it matches what we did before in such cases.)
+Then, leave the sums at their exact value of zero for as long
+as we haven't detected different input values.
+
+This solution requires the aggregate transition state to contain
+8 float values not 6, which is not problematic, and it seems to add
+less than 1% to the aggregates' runtime, which seems acceptable.
+
+While we're here, improve corr()'s final function to cope with
+overflow/underflow in the final calculation, and to clamp its
+result to [-1, 1] in case of roundoff error.
+
+Although this is arguably a bug fix, it requires a catversion bump
+due to the change in aggregates' initial states, so it can't be
+back-patched.
+
+Patch written by me, but many of the ideas are due to Dean Rasheed,
+who also did a deal of testing.
+
+Bug: #19340
+Reported-by: Oleg Ivanov <o15611@gmail.com>
+Author: Tom Lane <tgl@sss.pgh.pa.us>
+Co-authored-by: Dean Rasheed <dean.a.rasheed@gmail.com>
+Discussion: https://postgr.es/m/19340-6fb9f6637f562092@postgresql.org_|_
