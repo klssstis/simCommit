@@ -21006,4 +21006,67 @@ Bug: #19340
 Reported-by: Oleg Ivanov <o15611@gmail.com>
 Author: Tom Lane <tgl@sss.pgh.pa.us>
 Co-authored-by: Dean Rasheed <dean.a.rasheed@gmail.com>
-Discussion: https://postgr.es/m/19340-6fb9f6637f562092@postgresql.org_|_
+Discussion: https://postgr.es/m/19340-6fb9f6637f562092@postgresql.org_|_Fix const-simplification for index expressions and predicate
+
+Similar to the issue with constraint and statistics expressions fixed
+in 317c117d6, index expressions and predicate can also suffer from
+incorrect reduction of NullTest clauses during const-simplification,
+due to unfixed varnos and the use of a NULL root.  It has been
+reported that this issue can cause the planner to fail to pick up a
+partial index that it previously matched successfully.
+
+Because we need to cache the const-simplified index expressions and
+predicate in the relcache entry, we cannot fix the Vars before
+applying eval_const_expressions.  To ensure proper reduction of
+NullTest clauses, this patch runs eval_const_expressions a second time
+-- after the Vars have been fixed and with a valid root.
+
+It could be argued that the additional call to eval_const_expressions
+might increase planning time, but I don't think that's a concern.  It
+only runs when index expressions and predicate are present; it is
+relatively cheap when run on small expression trees (which is
+typically the case for index expressions and predicate), and it runs
+on expressions that have already been const-simplified once, making
+the second pass even cheaper.  In return, in cases like the one
+reported, it allows the planner to match and use partial indexes,
+which can lead to significant execution-time improvements.
+
+Bug: #19007
+Reported-by: Bryan Fox <bryfox@gmail.com>
+Author: Richard Guo <guofenglinux@gmail.com>
+Discussion: https://postgr.es/m/19007-4cc6e252ed8aa54a@postgresql.org_|_libpq: Refactor logic checking for exit() in shared library builds
+
+This commit refactors the sanity check done by libpq to ensure that
+there is no exit() reference in the build, moving the check from a
+standalone Makefile rule to a perl script.
+
+Platform-specific checks are now part of the script, avoiding most of
+the duplication created by the introduction of this check for meson, but
+not all of them:
+- Solaris and Windows skipped in the script.
+- Whitelist of symbols is in the script.
+- nm availability, with its path given as an option of the script.  Its
+execution is checked in the script.
+- Check is disabled if coverage reports are enabled.  This part is not
+pushed down to the script.
+- Check is disabled for static builds of libpq.  This part is filtered
+out in each build script.
+
+A trick is required for the stamp file, in the shape of an optional
+argument that can be given to the script.  Meson expects the stamp in
+output and uses this argument, generating the stamp file in the script.
+Meson is able to handle the removal of the stamp file internally when
+libpq needs to be rebuilt and the check done again.
+
+This refactoring piece has come up while discussing the addition of more
+items in the symbols considered as acceptable.
+
+This sanity check has never been run by meson since its introduction in
+dc227eb82ea8, so it is possible that this fails in some of the buildfarm
+members.  At least the CI is happy with it, but let's see how it goes.
+
+Author: Nazir Bilal Yavuz <byavuz81@gmail.com>
+Co-authored-by: VASUKI M <vasukim1992002@gmail.com>
+Reviewed-by: Daniel Gustafsson <daniel@yesql.se>
+Reviewed-by: Michael Paquier <michael@paquier.xyz>
+Discussion: https://postgr.es/m/19095-6d8256d0c37d4be2@postgresql.org_|_
