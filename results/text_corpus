@@ -21069,4 +21069,27 @@ Author: Nazir Bilal Yavuz <byavuz81@gmail.com>
 Co-authored-by: VASUKI M <vasukim1992002@gmail.com>
 Reviewed-by: Daniel Gustafsson <daniel@yesql.se>
 Reviewed-by: Michael Paquier <michael@paquier.xyz>
-Discussion: https://postgr.es/m/19095-6d8256d0c37d4be2@postgresql.org_|_
+Discussion: https://postgr.es/m/19095-6d8256d0c37d4be2@postgresql.org_|_libpq: Authorize pthread_exit() in libpq_check
+
+pthread_exit() is added to the list of symbols allowed when building
+libpq.  This has been reported as possible when libpq is statically
+linked to libcrypto, where pthread_exit() could be called.
+
+Reported-by: Torsten Rupp <torsten.rupp@gmx.net>
+Author: Nazir Bilal Yavuz <byavuz81@gmail.com>
+Reviewed-by: Daniel Gustafsson <daniel@yesql.se>
+Reviewed-by: Michael Paquier <michael@paquier.xyz>
+Discussion: https://postgr.es/m/19095-6d8256d0c37d4be2@postgresql.org_|_Fix meson warning due to missing declaration of NM
+
+The warning was showing up in the early stages of the meson build, when
+the contents of Makefile.global is generated based on the configuration
+of meson for PGXS.
+
+NM is added to pgxs_empty.  This declaration is only used internally for
+the libpq sanity check, so there is no point in exposing it in PGXS.
+
+Oversight in 4a8e6f43a6b5.
+
+Reported-by: Peter Eisentraut <peter@eisentraut.org>
+Reviewed-by: Nazir Bilal Yavuz <byavuz81@gmail.com>
+Discussion: https://postgr.es/m/4423e01f-1e52-4f47-a6ca-05cc8081c888@eisentraut.org_|_
