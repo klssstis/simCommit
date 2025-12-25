@@ -21092,4 +21092,41 @@ Oversight in 4a8e6f43a6b5.
 
 Reported-by: Peter Eisentraut <peter@eisentraut.org>
 Reviewed-by: Nazir Bilal Yavuz <byavuz81@gmail.com>
-Discussion: https://postgr.es/m/4423e01f-1e52-4f47-a6ca-05cc8081c888@eisentraut.org_|_
+Discussion: https://postgr.es/m/4423e01f-1e52-4f47-a6ca-05cc8081c888@eisentraut.org_|_Fix planner error with SRFs and grouping sets
+
+If there are any SRFs in a PathTarget, we must separate it into
+SRF-computing and SRF-free targets.  This is because the executor can
+only handle SRFs that appear at the top level of the targetlist of a
+ProjectSet plan node.
+
+If we find a subexpression that matches an expression already computed
+in the previous plan level, we should treat it like a Var and should
+not split it again.  setrefs.c will later replace the expression with
+a Var referencing the subplan output.
+
+However, when processing the grouping target for grouping sets, the
+planner can fail to recognize that an expression is already computed
+in the scan/join phase.  The root cause is a mismatch in the
+nullingrels bits.  Expressions in the grouping target carry the
+grouping nulling bit in their nullingrels to indicate that they can be
+nulled by the grouping step.  However, the corresponding expressions
+in the scan/join target do not have these bits.
+
+As a result, the exact match check in list_member() fails, leading the
+planner to incorrectly believe that the expression needs to be
+re-evaluated from its arguments, which are often not available in the
+subplan.  This can lead to planner errors such as "variable not found
+in subplan target list".
+
+To fix, ignore the grouping nulling bit when checking whether an
+expression from the grouping target is available in the pre-grouping
+input target.  This aligns with the matching logic in setrefs.c.
+
+Backpatch to v18, where this issue was introduced.
+
+Bug: #19353
+Reported-by: Marian MULLER REBEYROL <marian.muller@serli.com>
+Author: Richard Guo <guofenglinux@gmail.com>
+Reviewed-by: Tender Wang <tndrwang@gmail.com>
+Discussion: https://postgr.es/m/19353-aaa179bba986a19b@postgresql.org
+Backpatch-through: 18_|_
