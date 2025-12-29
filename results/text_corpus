@@ -21129,4 +21129,66 @@ Reported-by: Marian MULLER REBEYROL <marian.muller@serli.com>
 Author: Richard Guo <guofenglinux@gmail.com>
 Reviewed-by: Tender Wang <tndrwang@gmail.com>
 Discussion: https://postgr.es/m/19353-aaa179bba986a19b@postgresql.org
+Backpatch-through: 18_|_Ignore PlaceHolderVars when looking up statistics
+
+When looking up statistical data about an expression, we failed to
+look through PlaceHolderVar nodes, treating them as opaque.  This
+could prevent us from matching an expression to base columns, index
+expressions, or extended statistics, as examine_variable() relies on
+strict structural matching.
+
+As a result, queries involving PlaceHolderVar nodes often fell back to
+default selectivity estimates, potentially leading to poor plan
+choices.
+
+This patch updates examine_variable() to strip PlaceHolderVars before
+analysis.  This is safe during estimation because PlaceHolderVars are
+transparent for the purpose of statistics lookup: they do not alter
+the value distribution of the underlying expression.
+
+To minimize performance overhead on this hot path, a lightweight
+walker first checks for the presence of PlaceHolderVars.  The more
+expensive mutator is invoked only when necessary.
+
+There is one ensuing plan change in the regression tests, which is
+expected and demonstrates the fix: the rowcount estimate becomes much
+more accurate with this patch.
+
+Back-patch to v18.  Although this issue exists before that, changes in
+this version made it common enough to notice.  Given the lack of field
+reports for older versions, I am not back-patching further.
+
+Reported-by: Haowu Ge <gehaowu@bitmoe.com>
+Author: Richard Guo <guofenglinux@gmail.com>
+Discussion: https://postgr.es/m/62af586c-c270-44f3-9c5e-02c81d537e3d.gehaowu@bitmoe.com
+Backpatch-through: 18_|_Strip PlaceHolderVars from index operands
+
+When pulling up a subquery, we may need to wrap its targetlist items
+in PlaceHolderVars to enforce separate identity or as a result of
+outer joins.  However, this causes any upper-level WHERE clauses
+referencing these outputs to contain PlaceHolderVars, which prevents
+indxpath.c from recognizing that they could be matched to index
+columns or index expressions, potentially affecting the planner's
+ability to use indexes.
+
+To fix, explicitly strip PlaceHolderVars from index operands.  A
+PlaceHolderVar appearing in a relation-scan-level expression is
+effectively a no-op.  Nevertheless, to play it safe, we strip only
+PlaceHolderVars that are not marked nullable.
+
+The stripping is performed recursively to handle cases where
+PlaceHolderVars are nested or interleaved with other node types.  To
+minimize performance impact, we first use a lightweight walker to
+check for the presence of strippable PlaceHolderVars.  The expensive
+mutator is invoked only if a candidate is found, avoiding unnecessary
+memory allocation and tree copying in the common case where no
+PlaceHolderVars are present.
+
+Back-patch to v18.  Although this issue exists before that, changes in
+this version made it common enough to notice.  Given the lack of field
+reports for older versions, I am not back-patching further.
+
+Reported-by: Haowu Ge <gehaowu@bitmoe.com>
+Author: Richard Guo <guofenglinux@gmail.com>
+Discussion: https://postgr.es/m/62af586c-c270-44f3-9c5e-02c81d537e3d.gehaowu@bitmoe.com
 Backpatch-through: 18_|_
