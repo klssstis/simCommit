@@ -21191,4 +21191,52 @@ reports for older versions, I am not back-patching further.
 Reported-by: Haowu Ge <gehaowu@bitmoe.com>
 Author: Richard Guo <guofenglinux@gmail.com>
 Discussion: https://postgr.es/m/62af586c-c270-44f3-9c5e-02c81d537e3d.gehaowu@bitmoe.com
-Backpatch-through: 18_|_
+Backpatch-through: 18_|_Ensure sanity of hash-join costing when there are no MCV statistics.
+
+estimate_hash_bucket_stats is defined to return zero to *mcv_freq if
+it cannot obtain a value for the frequency of the most common value.
+Its sole caller final_cost_hashjoin ignored this provision and would
+blindly believe the zero value, resulting in computing zero for the
+largest bucket size.  In consequence, the safety check that intended
+to prevent the largest bucket from exceeding get_hash_memory_limit()
+was ineffective, allowing very silly plans to be chosen if statistics
+were missing.
+
+After fixing final_cost_hashjoin to disregard zero results for
+mcv_freq, a second problem appeared: some cases that should use hash
+joins failed to.  This is because estimate_hash_bucket_stats was
+unaware of the fact that ANALYZE won't store MCV statistics if it
+doesn't find any multiply-occurring values.  Thus the lack of an MCV
+stats entry doesn't necessarily mean that we know nothing; we may
+well know that the column is unique.  The former coding returned zero
+for *mcv_freq in this case, which was pretty close to correct, but now
+final_cost_hashjoin doesn't believe it and disables the hash join.
+So check to see if there is a HISTOGRAM stats entry; if so, ANALYZE
+has in fact run for this column and must have found it to be unique.
+In that case report the MCV frequency as 1 / rows, instead of claiming
+ignorance.
+
+Reporting a more accurate *mcv_freq in this case can also affect the
+bucket-size skew adjustment further down in estimate_hash_bucket_stats,
+causing hash-join cost estimates to change slightly.  This affects
+some plan choices in the core regression tests.  The first diff in
+join.out corresponds to a case where we have no stats and should not
+risk a hash join, but the remaining changes are caused by producing
+a better bucket-size estimate for unique join columns.  Those are all
+harmless changes so far as I can tell.
+
+The existing behavior was introduced in commit 4867d7f62 in v11.
+It appears from the commit log that disabling the bucket-size safety
+check in the absence of statistics was intentional; but we've now seen
+a case where the ensuing behavior is bad enough to make that seem like
+a poor decision.  In any case the lack of other problems with that
+safety check after several years helps to justify enforcing it more
+strictly.  However, we won't risk back-patching this, in case any
+applications are depending on the existing behavior.
+
+Bug: #19363
+Reported-by: Jinhui Lai <jinhui.lai@qq.com>
+Author: Tom Lane <tgl@sss.pgh.pa.us>
+Reviewed-by: Chao Li <li.evan.chao@gmail.com>
+Discussion: https://postgr.es/m/2380165.1766871097@sss.pgh.pa.us
+Discussion: https://postgr.es/m/19363-8dd32fc7600a1153@postgresql.org_|_
