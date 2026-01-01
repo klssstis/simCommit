@@ -21239,4 +21239,24 @@ Reported-by: Jinhui Lai <jinhui.lai@qq.com>
 Author: Tom Lane <tgl@sss.pgh.pa.us>
 Reviewed-by: Chao Li <li.evan.chao@gmail.com>
 Discussion: https://postgr.es/m/2380165.1766871097@sss.pgh.pa.us
-Discussion: https://postgr.es/m/19363-8dd32fc7600a1153@postgresql.org_|_
+Discussion: https://postgr.es/m/19363-8dd32fc7600a1153@postgresql.org_|_Fix macro name for io_uring_queue_init_mem check.
+
+Commit f54af9f2679d added a check for
+io_uring_queue_init_mem(). However, it used the macro name
+HAVE_LIBURING_QUEUE_INIT_MEM in both meson.build and the C code, while
+the Autotools build script defined HAVE_IO_URING_QUEUE_INIT_MEM. As a
+result, the optimization was never enabled in builds configured with
+Autotools, as the C code checked for the wrong macro name.
+
+This commit changes the macro name to HAVE_IO_URING_QUEUE_INIT_MEM in
+meson.build and the C code. This matches the actual function
+name (io_uring_queue_init_mem), following the standard HAVE_<FUNCTION>
+convention.
+
+Backpatch to 18, where the macro was introduced.
+
+Bug: #19368
+Reported-by: Evan Si <evsi@amazon.com>
+Reviewed-by: Tom Lane <tgl@sss.pgh.pa.us>
+Discussion: https://postgr.es/m/19368-016d79a7f3a1c599@postgresql.org
+Backpatch-through: 18_|_
